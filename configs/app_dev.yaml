@@ -1,0 +1,18 @@
+mysql:
+  dsn: "goempty:CHANGE_ME@tcp(127.0.0.1:3306)/goempty?charset=utf8mb4&parseTime=true&loc=Local&timeout=5s&readTimeout=5s&writeTimeout=5s"
+  max_open_conns: 10
+  max_idle_conns: 5
+  conn_max_lifetime: 30m
+  conn_max_idle_time: 5m
+
+redis:
+  addr: "127.0.0.1:6379"
+  username: ""
+  password: ""
+  db: 0
+  pool_size: 10
+  min_idle_conns: 2
+  dial_timeout: 5s
+  read_timeout: 3s
+  write_timeout: 3s
+  pool_timeout: 4s
