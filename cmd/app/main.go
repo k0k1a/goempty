@@ -17,6 +17,10 @@ import (
 	"go.uber.org/zap"
 )
 
+// @title goempty API
+// @version 1.0
+// @description goempty HTTP API. Ordinary JSON responses use code/message/data; code 0 means success. Request IDs are returned in the X-Request-ID header. Health endpoints return an empty body.
+// @BasePath /
 func main() {
 	ctx := context.Background()
 	exitCode := 0

@@ -1,0 +1,133 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "goempty HTTP API. Ordinary JSON responses use code/message/data; code 0 means success. Request IDs are returned in the X-Request-ID header. Health endpoints return an empty body.",
+        "title": "goempty API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "basePath": "/",
+    "paths": {
+        "/healthz": {
+            "get": {
+                "tags": [
+                    "health"
+                ],
+                "summary": "Check liveness",
+                "responses": {
+                    "200": {
+                        "description": "OK; empty response body",
+                        "headers": {
+                            "X-Request-ID": {
+                                "type": "string",
+                                "description": "Request ID"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/hello": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "hello"
+                ],
+                "summary": "Get a greeting",
+                "responses": {
+                    "200": {
+                        "description": "Greeting returned successfully; code is 0",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response-entity_HelloResponse"
+                        },
+                        "headers": {
+                            "X-Request-ID": {
+                                "type": "string",
+                                "description": "Request ID"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error; code is -1, data is null",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response-any"
+                        },
+                        "headers": {
+                            "X-Request-ID": {
+                                "type": "string",
+                                "description": "Request ID"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/readyz": {
+            "get": {
+                "description": "Returns 200 with an empty body; does not check MySQL or Redis connectivity.",
+                "tags": [
+                    "health"
+                ],
+                "summary": "Check readiness",
+                "responses": {
+                    "200": {
+                        "description": "OK; empty response body",
+                        "headers": {
+                            "X-Request-ID": {
+                                "type": "string",
+                                "description": "Request ID"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "entity.HelloResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "hello"
+                }
+            }
+        },
+        "response.Response-any": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer"
+                },
+                "data": {},
+                "message": {
+                    "type": "string"
+                },
+                "request_id": {
+                    "description": "RequestID is reserved and currently omitted; use the X-Request-ID header.",
+                    "type": "string"
+                }
+            }
+        },
+        "response.Response-entity_HelloResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer"
+                },
+                "data": {
+                    "$ref": "#/definitions/entity.HelloResponse"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "request_id": {
+                    "description": "RequestID is reserved and currently omitted; use the X-Request-ID header.",
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

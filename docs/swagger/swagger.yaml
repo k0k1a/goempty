@@ -1,0 +1,91 @@
+basePath: /
+definitions:
+  entity.HelloResponse:
+    properties:
+      message:
+        example: hello
+        type: string
+    type: object
+  response.Response-any:
+    properties:
+      code:
+        type: integer
+      data: {}
+      message:
+        type: string
+      request_id:
+        description: RequestID is reserved and currently omitted; use the X-Request-ID
+          header.
+        type: string
+    type: object
+  response.Response-entity_HelloResponse:
+    properties:
+      code:
+        type: integer
+      data:
+        $ref: '#/definitions/entity.HelloResponse'
+      message:
+        type: string
+      request_id:
+        description: RequestID is reserved and currently omitted; use the X-Request-ID
+          header.
+        type: string
+    type: object
+info:
+  contact: {}
+  description: goempty HTTP API. Ordinary JSON responses use code/message/data; code
+    0 means success. Request IDs are returned in the X-Request-ID header. Health endpoints
+    return an empty body.
+  title: goempty API
+  version: "1.0"
+paths:
+  /healthz:
+    get:
+      responses:
+        "200":
+          description: OK; empty response body
+          headers:
+            X-Request-ID:
+              description: Request ID
+              type: string
+      summary: Check liveness
+      tags:
+      - health
+  /hello:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Greeting returned successfully; code is 0
+          headers:
+            X-Request-ID:
+              description: Request ID
+              type: string
+          schema:
+            $ref: '#/definitions/response.Response-entity_HelloResponse'
+        "500":
+          description: Internal error; code is -1, data is null
+          headers:
+            X-Request-ID:
+              description: Request ID
+              type: string
+          schema:
+            $ref: '#/definitions/response.Response-any'
+      summary: Get a greeting
+      tags:
+      - hello
+  /readyz:
+    get:
+      description: Returns 200 with an empty body; does not check MySQL or Redis connectivity.
+      responses:
+        "200":
+          description: OK; empty response body
+          headers:
+            X-Request-ID:
+              description: Request ID
+              type: string
+      summary: Check readiness
+      tags:
+      - health
+swagger: "2.0"

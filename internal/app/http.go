@@ -36,10 +36,31 @@ func newHTTPHandler(deps *httpDependencies) *gin.Engine {
 	engine.HandleMethodNotAllowed = true
 	engine.NoRoute(controller.RouteNotFound)
 	engine.NoMethod(controller.MethodNotAllowed)
-	engine.GET("/healthz", func(c *gin.Context) { c.Status(http.StatusOK) })
-	engine.GET("/readyz", func(c *gin.Context) { c.Status(http.StatusOK) })
+	engine.GET("/healthz", healthz)
+	engine.GET("/readyz", readyz)
 
 	hello := controller.NewHelloController(deps.Hello)
 	engine.GET("/hello", hello.Hello)
 	return engine
+}
+
+// healthz reports that the HTTP process is alive.
+// @Summary Check liveness
+// @Tags health
+// @Success 200 "OK; empty response body"
+// @Header 200 {string} X-Request-ID "Request ID"
+// @Router /healthz [get]
+func healthz(c *gin.Context) {
+	c.Status(http.StatusOK)
+}
+
+// readyz preserves the existing readiness response without checking dependencies.
+// @Summary Check readiness
+// @Description Returns 200 with an empty body; does not check MySQL or Redis connectivity.
+// @Tags health
+// @Success 200 "OK; empty response body"
+// @Header 200 {string} X-Request-ID "Request ID"
+// @Router /readyz [get]
+func readyz(c *gin.Context) {
+	c.Status(http.StatusOK)
 }

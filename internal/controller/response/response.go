@@ -11,7 +11,7 @@ type Response[T any] struct {
 	Code      int    `json:"code"`
 	Message   string `json:"message"`
 	Data      T      `json:"data"`
-	RequestID string `json:"request_id,omitempty"`
+	RequestID string `json:"request_id,omitempty"` // RequestID is reserved and currently omitted; use the X-Request-ID header.
 }
 
 // Success writes a successful JSON response. Use c.Status directly for HTTP 204.

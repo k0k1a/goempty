@@ -12,6 +12,7 @@
 | 日志 | Zap + Lumberjack | `pkg/log` 默认输出 JSON 到 stdout；独立实例支持文件输出与按大小轮转，完整配置由调用方传入，见 [使用说明](pkg/log/README.md) |
 | 错误处理 | 自定义错误 | 承载业务错误码、错误消息等信息，供接口层统一解析 |
 | 依赖注入 | Wire | 编译期依赖注入与依赖组装 |
+| API 文档生成 | Swaggo v1.16.6 | 从 Go 注释离线生成可导入的 Swagger 2.0 JSON/YAML，见 [生成说明](docs/swagger/README.md) |
 
 ## 错误处理约定
 
