@@ -29,31 +29,27 @@
 │   ├── controller/                 # HTTP 接口适配，不承载核心业务逻辑
 │   │   ├── user.go                 # 用户 HTTP handler
 │   │   ├── order.go                # 订单 HTTP handler
-│   │   ├── error.go                # 业务错误到 HTTP 状态、错误响应的映射
+│   │   ├── error.go                # 404、405 路由错误入口
 │   │   ├── middleware/
 │   │   │   ├── auth.go             # 按需：身份认证
 │   │   │   └── middleware.go       # 请求标识、访问日志与 panic 恢复
-│   │   ├── request/
-│   │   │   └── order.go            # 可选：与 service 输入有差异的请求对象
 │   │   └── response/
 │   │       ├── response.go         # 统一响应外壳：code、message、data 等
-│   │       └── order.go            # 可选：与 service 结果有差异的响应对象
+│   │       └── error.go            # 业务错误解析、HTTP 状态映射与错误响应
 │   ├── consumer/
 │   │   └── order.go                # 消息消费入口：解码、调用 service、ACK 与重试
 │   ├── job/
-│   │   └── order_timeout.go        # 定时任务入口及专用参数，调用 service
-│   ├── entity/                     # 跨层共用的业务数据类型，不依赖各层实现
-│   │   ├── order.go                # 业务对象及相关状态、规则
+│   │   └── order_timeout.go        # 定时任务入口，调用 service
+│   ├── entity/                     # 业务数据与错误定义，不依赖各层实现
+│   │   ├── error.go                # 错误类型、公共错误与具体业务错误
+│   │   ├── order.go                # 订单输入、结果及共用业务对象
 │   │   ├── order_message.go        # 订单消息对象
 │   │   └── user_message.go         # 用户消息对象
 │   ├── service/                    # 应用业务逻辑，同一包内按业务拆文件
 │   │   ├── user.go                 # UserService 及业务方法
-│   │   ├── user_types.go           # 用户业务 Input、Result
 │   │   ├── user_test.go            # 用户业务单元测试
 │   │   ├── order.go                # OrderService 及业务方法
-│   │   ├── order_types.go          # 订单业务 Input、Result
-│   │   ├── order_test.go           # 订单业务单元测试
-│   │   └── contracts.go            # service 所需的仓储、缓存、消息发布等接口
+│   │   └── order_test.go           # 订单业务单元测试
 │   └── repo/                       # DAO 职责：数据访问及外部能力的具体实现
 │       ├── db/
 │       │   ├── user.go             # 用户数据库访问
@@ -67,11 +63,9 @@
 │       │   └── order.go            # 订单缓存访问
 │       ├── webapi/                 # 主动调用其他系统的 HTTP 客户端
 │       │   ├── inventory/          # 示例：内部库存系统
-│       │       ├── client.go
-│       │       └── types.go        # 对方系统专用的请求、响应结构
+│       │       └── client.go       # 具体客户端；业务数据类型放 entity
 │       │   └── wechat/             # 示例：第三方平台，与内部系统平级
-│       │       ├── client.go
-│       │       └── types.go
+│       │       └── client.go
 │       └── publisher/
 │           └── order.go            # 业务消息发布、消息编码与投递
 ├── pkg/                           # 不含业务知识的基础组件，按需封装
@@ -104,8 +98,8 @@
 - `controller`：HTTP 请求绑定与校验，调用 service，映射 HTTP 结果与错误。
 - `consumer`：消息消费入口，解码和校验消息，调用 service，处理 ACK 与重试。
 - `job`：定时任务入口，准备执行参数并调用 service。
-- `entity`：跨层共用的业务数据类型，包括业务对象和消息对象，不依赖 controller、consumer、job、service、repo 的实现。
-- `service`：业务校验、权限规则、流程编排与事务边界；不依赖 HTTP 框架或 repo 具体实现。
+- `entity`：统一存放业务数据结构体，包括 HTTP 请求与响应数据、service 输入与结果、共用业务对象、消息和业务任务参数，按业务分文件，不依赖 controller、consumer、job、service、repo 的实现或 Gin。
+- `service`：业务校验、权限规则、流程编排与事务边界；不依赖 HTTP 框架；可以导入 repo 包，字段及构造函数依赖接口，不绑定具体实现类型。
 - `repo`：数据库、缓存、外部 HTTP 调用、消息发布的具体实现；不依赖 controller 的请求或响应类型。
 - `app`：创建具体实现，通过构造函数注入依赖；负责进程级生命周期。
 - `pkg`：不包含业务知识的基础组件，不导入本项目的 internal 包。
@@ -120,7 +114,7 @@ MQ consumer ──┼──→ service → 依赖接口 → repo 实现 → 数�
 定时任务 job ─┘
 ```
 
-service 所需的依赖接口定义在 `service/contracts.go`，由 `app` 将 repo 实现注入。service 不导入 repo 的具体实现。repo 可以使用 service 定义的契约类型；service 可以使用 `repo/db/model` 中的纯数据类型，该包不得依赖 service 或 repo 实现，以避免循环依赖。
+仓储、缓存及外部能力接口定义在对应 repo 文件中，与实现放在同一包，由 `app` 将具体实现注入 service。service 可以导入 repo 包，但字段和构造函数使用接口，不使用具体实现类型。repo 不导入 service，业务数据使用 entity 或 `repo/db/model` 中的纯数据类型；model 不依赖 service 或 repo 实现。接口不放入 entity，也不再集中维护 service/contracts.go。
 
 service 放在同一个 Go 包内，通过业务文件和不同 Service 类型区分。避免对象之间双向调用；跨业务流程由职责明确的编排对象协调。业务边界稳定、规模增长后可拆分子包，并保持单向依赖。
 
@@ -128,27 +122,30 @@ service 放在同一个 Go 包内，通过业务文件和不同 Service 类型�
 
 | 对象 | 位置 | 约定 |
 | --- | --- | --- |
-| service 输入对象 | `service/*_types.go` | 需要操作专用输入时定义，如 `CreateOrderInput`；与 DO 一致时可复用 DO |
-| service 结果对象 | `service/*_types.go` | 需要业务投影或组合结果时定义，如 `OrderResult`；与 DO 一致时可复用 DO |
-| HTTP 专用请求 | `controller/request` | HTTP 请求到 service 输入需要转换时定义 |
-| HTTP 专用响应 | `controller/response` | 与 service 结果存在展示差异时定义；统一响应外壳也放这里 |
+| service 输入对象 | `entity/<业务>.go` | 如 `CreateOrderInput`；HTTP 入口默认直接复用，简单参数可直接传递 |
+| service 结果对象 | `entity/<业务>.go` | 如 `OrderResult`，可直接作为 HTTP 响应的 data |
+| HTTP 专用请求 | `entity/<业务>.go` | 仅在与业务输入存在差异时定义 `XxxRequest`，不另设 request 包 |
+| HTTP 专用响应数据 | `entity/<业务>.go` | 仅在与业务结果存在差异时定义 `XxxResponse` |
+| HTTP 统一响应外壳 | `controller/response` | 仅存放 `code/message/data` 等公共响应结构 |
 | 数据库 DO | `repo/db/model` | 数据库表字段、ORM 标签和存储映射；service 与 repo 可共用 |
 | 跨层业务对象 | `entity/<业务>.go` | 共用的业务数据与相关规则 |
 | MQ 消息体 | `entity/<业务>_message.go` | 发布、消费共用消息定义，同一消息不重复定义 |
-| 定时任务专用参数 | 对应 `internal/job` 文件内 | 仅入口使用的参数留在 job；调用 service 时复用其输入或传简单参数 |
-| 外部 API 对象 | `repo/webapi/<系统>/types.go` | 被调用系统的请求、响应格式，留在对应客户端包 |
+| 定时任务业务参数 | `entity/<业务>.go` | 调用 service 时复用其输入或传简单参数；调度器实现与配置仍留在所属包 |
+| 外部 API 业务数据 | `entity/<业务>.go` | 按系统或业务语义命名，具体客户端实现留在 repo/webapi |
+| Controller、Service、Repo 实现结构体 | 各自所属包 | 持有依赖、实现行为，不放入 entity |
+| 应用及通用组件配置、组件类型 | `config` 或对应 `pkg/<组件>` | 如 `db.Config`、`httpserver.Config`，不放入 entity |
 
 ### controller 与 service 的对象复用
 
-默认复用 service 输入、结果类型，不因跨层调用重复定义结构体。HTTP controller 可以直接绑定 service Input，也可以直接返回 service Result。service 不导入 controller。
+Controller 与 Service 默认共用 entity 中的 Input、Result，不因跨层调用重复定义结构体。例如创建订单接口解析 `entity.CreateOrderInput` 并交给 Service，返回 `entity.OrderResult` 作为响应 data。service 不导入 controller。
 
 只有简单参数时，直接调用 `GetOrder(ctx, userID, orderID)`，不必创建输入对象。
 
-字段、语义或格式存在差异并需要转换时，定义独立 request/response，由 controller 转换。登录用户 ID 等可信数据从认证上下文提取，不直接相信客户端提交的同名字段。
+字段、语义或格式存在差异并需要转换时，在 entity 中定义独立的 Request/Response，由 controller 转换，不新建 request/response 业务数据包。登录用户 ID 等可信数据从认证上下文提取，不直接相信客户端提交的同名字段。
 
-复用的 service Input 允许携带 JSON、绑定及校验标签。标签本身不要求拆分类型；需要独立的入口校验规则时再拆分。HTTP 入口执行绑定与格式校验，service 保证必要的业务规则，不能依赖 HTTP 校验已经执行。
+entity 中的 Input 允许携带 JSON、绑定及校验标签，但不导入 Gin。标签本身不要求拆分类型；需要独立的入口校验规则时再拆分。HTTP 入口执行绑定与格式校验，service 保证必要的业务规则，不能依赖 HTTP 校验已经执行。
 
-service Result 可以包含 JSON 标签，但不包含 HTTP 状态或统一响应外壳。HTTP 状态、业务错误映射，以及 `code/message/data` 等外壳由 controller 处理。
+entity 中的 Result 可以包含 JSON 标签，但不包含 HTTP 状态或统一响应外壳。HTTP 状态、业务错误映射，以及 `code/message/data` 等外壳由 controller 处理。
 
 ### service 与 repo 的对象复用
 
@@ -156,15 +153,15 @@ service 与 repo 优先使用同一个对象类型。字段、语义和数据表
 
 只有实际需要转换时才拆分，例如数据库以 JSON 字符串存储而业务使用结构体，或查询结果需要聚合、投影。存储格式转换由 repo 完成，业务组合由 service 完成。
 
-controller 复用 service 返回对象时，必须确认其序列化字段均允许对外返回。密码哈希、内部标记等字段应排除序列化，或通过独立 response 明确选择字段；请求绑定同样只允许调用方可设置的字段。
+controller 复用 service 返回对象时，必须确认其序列化字段均允许对外返回。密码哈希、内部标记等字段应排除序列化，或通过 entity 中的独立结果/响应数据对象明确选择字段；请求绑定同样只允许调用方可设置的字段。
 
 ### entity 对象
 
-entity 放置跨层共用的业务数据类型，按业务拆文件。业务对象放在 `<业务>.go`，消息对象放在 `<业务>_message.go`，不另设独立 message 包。
+entity 统一放置业务数据结构体，包括 HTTP 请求参数、响应数据、service 输入与结果、跨层业务对象及消息，按业务拆文件。普通业务数据放在 `<业务>.go`，消息对象放在 `<业务>_message.go`，不另设独立 message 包。
 
 业务对象表达业务状态和规则；消息对象表达事件或消息契约，如 `OrderPaidMessage`。两者放在同一包内，仍按各自语义定义类型，不因字段相同就合并。
 
-service 专用 Input、Result 放在 service；数据库 DO 放在 `repo/db/model`。共用业务对象可直接用于 service 和 repo 的契约，字段与语义一致时复用，不为跨层调用额外转换。业务错误定义在 `service/errors.go`。
+数据库 DO 放在 `repo/db/model`。Controller、Service、Repo 的实现结构体仍留在各自包中；应用配置和通用组件类型留在 config 或所属 pkg 包中，不迁入 entity。共用业务对象可直接用于 service 和 repo 的契约，字段与语义一致时复用，不为跨层调用额外转换。错误类型、公共错误与具体业务错误统一定义在 `entity/error.go`，不包含 HTTP 状态码；HTTP 错误解析和状态映射放在 `controller/response/error.go`。
 
 ## HTTP、MQ 与定时任务
 

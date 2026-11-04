@@ -6,7 +6,7 @@ Panic 错误日志额外包含 `stack`，保留原始 panic 调用位置；响�
 
 Wire 生成依赖组装代码，`App` 管理运行组件的生命周期。当前接入 MySQL、Redis、Gin、HTTP Server 和 Hello Controller → Service → Repo 示例；MQ 消费者与调度器在有具体实现后接入。
 
-- `wire.go`：维护 Wire provider 和私有 injector `initialize(ctx, cfg)`，返回 `(*App, cleanup, error)`，创建 `HelloRepo`，将它绑定到 `service.HelloRepository` 接口，再创建 `HelloService`、`httpDependencies`、HTTP Server、MySQL 连接、Redis 客户端和 App，HTTP 此时尚未监听。不再维护单独的 `app.Config`。
+- `wire.go`：维护 Wire provider 和私有 injector `initialize(ctx, cfg)`，返回 `(*App, cleanup, error)`，创建 `HelloRepo`，将它绑定到 `db.HelloRepository` 接口，再创建 `HelloService`、`httpDependencies`、HTTP Server、MySQL 连接、Redis 客户端和 App，HTTP 此时尚未监听。不再维护单独的 `app.Config`。
 - `providers.go`：公开的 `Initialize(ctx, cfg)` 返回 `(*App, error)`，调用私有 `initialize` 并将清理函数交给 App。集中定义 `newDatabase`、`newRedis` 和 `newApp`。前两个分别调用 `pkg/db.New`、`pkg/redis.New` 创建共享连接并提供清理函数；Redis 初始化会执行 PING。`newApp` 调用 `New` 校验运行参数，再把连接保存到 App，使 Wire 能识别这些依赖并生成初始化和清理代码。后续业务消费者通过构造函数接收连接，不通过全局变量访问。
 - `wire_gen.go`：生成文件，不手工修改；普通构建不需要执行 Wire。
 - `app.go`：`App.Run(ctx)` 运行 HTTP 服务，收到取消后使用独立的关闭超时等待请求完成；超时由 HTTP Server 强制关闭连接并返回错误。退出前调用 `App.Close()` 释放依赖，提前取消和启动失败也会清理；`Close()` 通过 `sync.Once` 保证清理只执行一次。
@@ -15,7 +15,7 @@ Wire 生成依赖组装代码，`App` 管理运行组件的生命周期。当前
 
 应用层私有的 `httpDependencies` 对象由 Wire 填充 Service；手写创建 Controller 时只传入它需要的 Service，不传入整个依赖对象。当前只包含 `HelloService`。
 
-Hello 示例调用链为 `GET /hello → HelloController.Hello → HelloService.Hello → HelloRepo.Hello`。仓储接口定义在 `internal/service/contracts.go`；具体实现在 `internal/repo/db/hello.go`，直接返回 `hello`，不访问外部存储。Service 不导入 Repo 实现。
+Hello 示例调用链为 `GET /hello → HelloController.Hello → HelloService.Hello → HelloRepo.Hello`。仓储接口 `db.HelloRepository` 与具体实现 `HelloRepo` 均定义在 `internal/repo/db/hello.go`，直接返回 `hello`，不访问外部存储。Service 导入 Repo 包并依赖接口，Repo 不反向导入 Service。
 
 `cmd/app/main.go` 是可运行入口，负责监听 `os.Interrupt`（如 Ctrl+C）和 `SIGTERM`，将取消通知传给 `App.Run`，等待关闭完成后退出；初始化或运行失败时统一记录错误并以状态码 1 退出。
 
@@ -33,7 +33,7 @@ go run ./cmd/app
 
 `config.Load()` 同时启动 Viper 文件监听；变化回调直接使用同一 Viper 实例重新反序列化，成功才替换内存配置，失败保留旧值。需要动态配置的业务通过 `config.Get()` 读取快照，不重启应用或重新执行 Wire 组装。
 
-`GET /hello` 返回 HTTP 200 和 JSON `{"code":0,"message":"success","data":{"message":"hello"}}`。未注册路径返回 404，不支持的方法返回 405，panic 返回 500；响应尚未写出时统一使用 JSON 外壳，code 为独立于 HTTP 状态码的整数业务码。错误解析与输出统一通过 `controller.RespondError`，约定见 [HTTP 公共响应](../controller/response/README.md)。部署时建议先 `go build -o app ./cmd/app`，直接运行编译产物，并将退出信号发送给应用进程。Wire 接收 context 和配置结构体，不负责加载文件。
+`GET /hello` 返回 HTTP 200 和 JSON `{"code":0,"message":"success","data":{"message":"hello"}}`。未注册路径返回 404，不支持的方法返回 405，panic 返回 500；响应尚未写出时统一使用 JSON 外壳，code 为独立于 HTTP 状态码的整数业务码。错误解析与输出统一通过 `response.RespondError`，约定见 [HTTP 公共响应](../controller/response/README.md)。部署时建议先 `go build -o app ./cmd/app`，直接运行编译产物，并将退出信号发送给应用进程。Wire 接收 context 和配置结构体，不负责加载文件。
 
 更新依赖组装后，在项目根目录运行：
 

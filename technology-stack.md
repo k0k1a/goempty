@@ -15,8 +15,8 @@
 
 ## 错误处理约定
 
-- `service.Error` 包含整数 `Code` 和可公开的 `Message`，预定义业务错误使用稳定编号 `100001`～`100008`。
-- Controller 通过 `RespondError` 使用 `errors.As` 提取业务错误，再以 `errors.Is` 匹配已登记的预定义实例，映射 HTTP 状态码；支持 `%w` 包装。
+- `entity.Error` 包含整数 `Code` 和可公开的 `Message`，错误类型、公共错误与后续具体业务错误统一放在 `internal/entity/error.go`；公共错误编号为 `100001`～`100008`，已有编号保持稳定。
+- Controller 通过 `response.RespondError`（位于 `controller/response/error.go`） 使用 `errors.As` 提取业务错误，再以 `errors.Is` 匹配已登记的预定义实例，映射 HTTP 状态码；支持 `%w` 包装。
 - 未登记的业务错误和普通 error 统一返回 HTTP 500、`code: -1`、`message: "未知错误"`，原始错误记录日志。
 - 普通 JSON 响应使用 `code/message/data` 外壳，成功 code 为 0；完整状态码映射和例外见 [HTTP 公共响应](internal/controller/response/README.md)。
 

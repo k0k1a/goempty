@@ -19,7 +19,7 @@ func initialize(ctx context.Context, cfg config.Config) (*App, func(), error) {
 		newDatabase,
 		newRedis,
 		db.NewHelloRepo,
-		wire.Bind(new(service.HelloRepository), new(*db.HelloRepo)),
+		wire.Bind(new(db.HelloRepository), new(*db.HelloRepo)),
 		service.NewHelloService,
 		wire.Struct(new(httpDependencies), "*"),
 		newHTTPServer,

@@ -1,7 +1,7 @@
-package service
+package entity
 
 // Predefined errors pair stable API codes with public messages.
-// These shared instances must not be modified. HTTP status mapping belongs to controller.
+// These shared instances must not be modified. HTTP status mapping belongs to controller/response.
 var (
 	ErrInvalidArgument    = NewError(100001, "请求参数不合法")
 	ErrUnauthenticated    = NewError(100002, "请先登录")

@@ -1,12 +1,14 @@
 package service
 
+import "goempty/internal/repo/db"
+
 // HelloService provides greeting operations.
 type HelloService struct {
-	repo HelloRepository
+	repo db.HelloRepository
 }
 
 // NewHelloService creates a service with its repository dependency.
-func NewHelloService(repo HelloRepository) *HelloService {
+func NewHelloService(repo db.HelloRepository) *HelloService {
 	return &HelloService{repo: repo}
 }
 

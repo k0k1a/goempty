@@ -1,4 +1,4 @@
-package controller
+package response
 
 import (
 	"encoding/json"
@@ -8,13 +8,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"goempty/internal/service"
+	"goempty/internal/entity"
 
 	"github.com/gin-gonic/gin"
 )
 
 func TestRespondError(t *testing.T) {
-	var nilBusinessError *service.Error
+	var nilBusinessError *entity.Error
 	for _, tc := range []struct {
 		name    string
 		err     error
@@ -22,17 +22,17 @@ func TestRespondError(t *testing.T) {
 		code    int
 		message string
 	}{
-		{"invalid argument", service.ErrInvalidArgument, 400, 100001, "请求参数不合法"},
-		{"unauthenticated", service.ErrUnauthenticated, 401, 100002, "请先登录"},
-		{"forbidden", service.ErrForbidden, 403, 100003, "无权限"},
-		{"wrapped", fmt.Errorf("lookup failed: %w", service.ErrNotFound), 404, 100004, "资源不存在"},
-		{"conflict", service.ErrConflict, 409, 100005, "状态冲突"},
-		{"business rule", service.ErrUnprocessable, 422, 100006, "不满足业务规则"},
-		{"rate limit", service.ErrRateLimited, 429, 100007, "请求过于频繁"},
-		{"unavailable", service.ErrServiceUnavailable, 503, 100008, "服务暂时不可用"},
+		{"invalid argument", entity.ErrInvalidArgument, 400, 100001, "请求参数不合法"},
+		{"unauthenticated", entity.ErrUnauthenticated, 401, 100002, "请先登录"},
+		{"forbidden", entity.ErrForbidden, 403, 100003, "无权限"},
+		{"wrapped", fmt.Errorf("lookup failed: %w", entity.ErrNotFound), 404, 100004, "资源不存在"},
+		{"conflict", entity.ErrConflict, 409, 100005, "状态冲突"},
+		{"business rule", entity.ErrUnprocessable, 422, 100006, "不满足业务规则"},
+		{"rate limit", entity.ErrRateLimited, 429, 100007, "请求过于频繁"},
+		{"unavailable", entity.ErrServiceUnavailable, 503, 100008, "服务暂时不可用"},
 		{"unexpected", errors.New("private database detail"), 500, -1, "未知错误"},
-		{"unregistered", service.NewError(999999, "private detail"), 500, -1, "未知错误"},
-		{"same code and message different instance", service.NewError(service.ErrNotFound.Code, service.ErrNotFound.Message), 500, -1, "未知错误"},
+		{"unregistered", entity.NewError(999999, "private detail"), 500, -1, "未知错误"},
+		{"same code and message different instance", entity.NewError(entity.ErrNotFound.Code, entity.ErrNotFound.Message), 500, -1, "未知错误"},
 		{"typed nil", nilBusinessError, 500, -1, "未知错误"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -63,7 +63,7 @@ func TestRespondError(t *testing.T) {
 }
 
 func TestBusinessStatusWrappedError(t *testing.T) {
-	err := fmt.Errorf("lookup failed: %w", service.ErrNotFound)
+	err := fmt.Errorf("lookup failed: %w", entity.ErrNotFound)
 	status, ok := businessStatus(err)
 	if !ok || status != http.StatusNotFound {
 		t.Fatalf("businessStatus(wrapped ErrNotFound) = %d, %v", status, ok)
