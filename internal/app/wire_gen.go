@@ -11,6 +11,7 @@ import (
 	"goempty/config"
 	"goempty/internal/repo/db"
 	"goempty/internal/service"
+	"goempty/internal/task"
 )
 
 // Injectors from wire.go:
@@ -27,6 +28,10 @@ func initialize(ctx context.Context, cfg config.Config) (*App, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	scheduler, err := task.NewScheduler()
+	if err != nil {
+		return nil, nil, err
+	}
 	duration := cfg.ShutdownTimeout
 	dbConfig := cfg.MySQL
 	gormDB, cleanup, err := newDatabase(ctx, dbConfig)
@@ -39,7 +44,7 @@ func initialize(ctx context.Context, cfg config.Config) (*App, func(), error) {
 		cleanup()
 		return nil, nil, err
 	}
-	app, err := newApp(server, duration, gormDB, client)
+	app, err := newApp(server, scheduler, duration, gormDB, client)
 	if err != nil {
 		cleanup2()
 		cleanup()

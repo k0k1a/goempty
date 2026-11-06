@@ -40,6 +40,9 @@ func main() {
 }
 
 func run() error {
+	if err := initTimezone(); err != nil {
+		return err
+	}
 	port, ok := os.LookupEnv("PORT")
 	if !ok {
 		port = "8080"
@@ -72,4 +75,15 @@ func run() error {
 	}
 	defer application.Close()
 	return application.Run(ctx)
+}
+
+// initTimezone sets the process default once during startup, before config
+// watchers and application components start. Never change time.Local at runtime.
+func initTimezone() error {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		return fmt.Errorf("load application timezone: %w", err)
+	}
+	time.Local = loc
+	return nil
 }

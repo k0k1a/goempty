@@ -51,7 +51,7 @@ mysql:
   conn_max_idle_time: 5m
 ```
 
-先准备本地 MySQL、`goempty` 数据库和账号，将 `CHANGE_ME` 替换为本地密码。程序不安装 MySQL，也不创建数据库或表。本地 YAML 可保存本地凭据，不保存线上配置；不读取 `GOEMPTY_MYSQL_DSN`。`loc=Local` 使用应用进程的本地时区。
+先准备本地 MySQL、`goempty` 数据库和账号，将 `CHANGE_ME` 替换为本地密码。程序不安装 MySQL，也不创建数据库或表。本地 YAML 可保存本地凭据，不保存线上配置；不读取 `GOEMPTY_MYSQL_DSN`。`loc=Local` 使用应用进程的本地时区，`cmd/app` 入口统一设置为 `Asia/Shanghai`；此项只影响驱动的时间处理，不修改 MySQL 服务端或会话时区。
 
 `app_test.yaml` 和 `app_prod.yaml` 保持空模板，运行这些环境前需自行填写相应 `mysql` 和 `redis` 配置；缺少配置会在初始化阶段启动失败。不提供线上连接信息。
 

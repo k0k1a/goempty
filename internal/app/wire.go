@@ -8,6 +8,7 @@ import (
 	"goempty/config"
 	"goempty/internal/repo/db"
 	"goempty/internal/service"
+	"goempty/internal/task"
 
 	"github.com/google/wire"
 )
@@ -23,6 +24,7 @@ func initialize(ctx context.Context, cfg config.Config) (*App, func(), error) {
 		service.NewHelloService,
 		wire.Struct(new(httpDependencies), "*"),
 		newHTTPServer,
+		task.NewScheduler,
 		newApp,
 	)
 	return nil, nil, nil
