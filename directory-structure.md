@@ -118,6 +118,26 @@ MQ consumer ──┼──→ service → 依赖接口 → repo 实现 → 数�
 
 service 放在同一个 Go 包内，通过业务文件和不同 Service 类型区分。避免对象之间双向调用；跨业务流程由职责明确的编排对象协调。业务边界稳定、规模增长后可拆分子包，并保持单向依赖。
 
+## 各层命名规范
+
+业务组件类型使用“业务或系统名称 + 职责后缀”，依赖字段、构造参数和局部变量使用对应的小驼峰名称，使读者能从名称判断用途。即使依赖通过接口声明，变量名仍表达其实际职责。
+
+| 职责 | 类型命名示例 | 字段、参数和变量命名示例 |
+| --- | --- | --- |
+| HTTP Controller | `UserController` | `userController` |
+| 业务 Service | `UserService` | `userService` |
+| 数据库 Repo | `UserRepo` | `userRepo` |
+| 缓存 Cache | `UserCache` | `userCache` |
+| 外部系统 Client | `InventoryClient` | `inventoryClient` |
+| 定时任务 Job | `OrderExpirationJob` | `orderExpirationJob` |
+| 消息消费者 Consumer | `OrderConsumer` | `orderConsumer` |
+| 消息发布者 Publisher | `OrderPublisher` | `orderPublisher` |
+
+- 构造函数与类型名对应，例如 `NewUserController`、`NewUserService`、`NewUserRepo`、`NewUserCache`、`NewInventoryClient`。
+- 依赖变量不使用含义模糊的 `s`、`r`、`svc`、`repo`、`client` 或仅业务复数等名称；例如 Service 的数据库依赖命名为 `userRepo`，缓存依赖命名为 `userCache`，便于区分相同业务的不同能力。
+- 接口按行为或能力命名，例如 `UserRepository`；注入该接口的数据库实现变量仍命名为 `userRepo`。不使用 `IUserRepo`、`UserInterface` 等无明确能力含义的命名。
+- 此规则针对业务组件及其依赖，不给普通业务数据、标准库类型或基础库原生句柄强加层后缀；包名和文件名继续遵循 Go 与项目已有规范。
+
 ## 输入、结果与数据库对象
 
 | 对象 | 位置 | 约定 |

@@ -11,6 +11,7 @@
 - 设计、诊断进入开发前，先获得用户对具体方案的明确确认；修改前检查工作区并保留已有改动。
 - Controller、Job 调用 Service；Service 依赖 Repo 接口，不编写事务。完整原子操作及事务由 Repo 封装。
 - 对象与错误放置遵循目录职责；不要为跨层传递增加仅逐字段复制的对象。
+- 业务组件及依赖按[各层命名规范](directory-structure.md#各层命名规范)使用职责后缀，例如 `UserController/userController`、`UserService/userService`、`UserRepo/userRepo`、`UserCache/userCache`、`InventoryClient/inventoryClient`，让类型、字段和变量名称直接表达用途。
 - 保留有用的组件文档与基础回归测试。修改行为时同步相关说明，根 README 只维护概览和导航。
 - 按实际需求创建目录，不添加占位能力；不擅自新增生产依赖、认证能力或扩大修改范围。
 - 不手工修改 `internal/app/wire_gen.go`；Wire 声明变化后运行 README 中的固定版本生成命令并检查差异。
