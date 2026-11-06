@@ -25,23 +25,25 @@ func RespondError(c *gin.Context, err error) {
 	Failure(c, http.StatusInternalServerError, -1, "未知错误")
 }
 
-func businessStatus(err error) (int, bool) {
-	switch {
-	case errors.Is(err, entity.ErrInvalidArgument):
-		return http.StatusBadRequest, true
-	case errors.Is(err, entity.ErrUnauthenticated):
-		return http.StatusUnauthorized, true
-	case errors.Is(err, entity.ErrForbidden):
-		return http.StatusForbidden, true
-	case errors.Is(err, entity.ErrNotFound):
-		return http.StatusNotFound, true
-	case errors.Is(err, entity.ErrConflict):
-		return http.StatusConflict, true
-	case errors.Is(err, entity.ErrUnprocessable):
+func businessStatus(err *entity.Error) (int, bool) {
+	switch err.Code {
+	case entity.CodeBusinessError:
 		return http.StatusUnprocessableEntity, true
-	case errors.Is(err, entity.ErrRateLimited):
+	case entity.ErrInvalidArgument.Code:
+		return http.StatusBadRequest, true
+	case entity.ErrUnauthenticated.Code:
+		return http.StatusUnauthorized, true
+	case entity.ErrForbidden.Code:
+		return http.StatusForbidden, true
+	case entity.ErrNotFound.Code:
+		return http.StatusNotFound, true
+	case entity.ErrConflict.Code:
+		return http.StatusConflict, true
+	case entity.ErrUnprocessable.Code:
+		return http.StatusUnprocessableEntity, true
+	case entity.ErrRateLimited.Code:
 		return http.StatusTooManyRequests, true
-	case errors.Is(err, entity.ErrServiceUnavailable):
+	case entity.ErrServiceUnavailable.Code:
 		return http.StatusServiceUnavailable, true
 	default:
 		return 0, false

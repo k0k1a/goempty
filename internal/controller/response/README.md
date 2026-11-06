@@ -15,6 +15,7 @@
 | 违反业务规则 | 422 | 100006 |
 | 请求限流 | 429 | 100007 |
 | 服务不可用 | 503 | 100008 |
+| 动态公开业务错误 | 422 | -1 |
 | 未知错误 | 500 | -1 |
 
 路由不存在复用 `100004`；请求方法不支持返回 HTTP 405，复用请求错误码 `100001`。后续具体业务可定义独立编号，例如 `200001`，同时登记对应 HTTP 状态码。前端依赖 code，不依赖 message 文案。
@@ -44,7 +45,9 @@ if err != nil {
 response.Success(c, http.StatusOK, result)
 ```
 
-`response.RespondError` 使用 `errors.As` 提取被 `%w` 包装的 `*entity.Error`，`businessStatus` 使用 `errors.Is` 判断是否为预定义错误并选择 HTTP 状态码。新增预定义错误时必须同步添加匹配分支，多个错误可以映射为同一 HTTP 状态码。临时创建的新错误即使 code/message 与预定义错误相同，也不会匹配；未登记的错误和普通 error 一律返回 `HTTP 500 + code -1 + 未知错误`，原始错误记录日志。不要将数据库、令牌等敏感内容填入公开 message 或错误日志。
+`response.RespondError` 使用 `errors.As` 提取被 `%w` 包装的 `*entity.Error`，`businessStatus` 按 Code 映射 HTTP 状态码。相同 code 的不同错误实例使用相同 HTTP 状态，响应 message 取当前错误的公开文案；新增独立 code 时需登记映射。未登记 code 和普通 error 返回 `HTTP 500 + code -1 + 未知错误`，原始错误记录日志。
+
+可使用 `entity.NewBusinessError("库存不足")` 返回动态公开消息，映射为 HTTP 422、code `-1`；也支持 `%w` 包装。它与未知内部错误共享 code `-1`，需要结合 HTTP 状态区分。只传入明确允许公开的文本，禁止以数据库错误、令牌或其他内部错误原文作为 message。不要在日志中输出敏感数据。
 
 参数绑定失败时使用 `response.RespondError(c, entity.ErrInvalidArgument)`，不直接暴露绑定器的原始错误。输出错误后必须 return；Abort 只能停止后续 Gin handler，不能终止当前函数。
 

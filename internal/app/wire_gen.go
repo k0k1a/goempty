@@ -9,9 +9,9 @@ package app
 import (
 	"context"
 	"goempty/config"
+	"goempty/internal/job"
 	"goempty/internal/repo/db"
 	"goempty/internal/service"
-	"goempty/internal/task"
 )
 
 // Injectors from wire.go:
@@ -28,7 +28,7 @@ func initialize(ctx context.Context, cfg config.Config) (*App, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	scheduler, err := task.NewScheduler()
+	scheduler, err := job.NewScheduler(helloService)
 	if err != nil {
 		return nil, nil, err
 	}

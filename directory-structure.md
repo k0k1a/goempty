@@ -54,7 +54,7 @@
 │       ├── db/
 │       │   ├── user.go             # 用户数据库访问
 │       │   ├── order.go            # 订单数据库访问
-│       │   ├── transaction.go      # 按需：事务执行适配
+│       │   ├── transaction.go      # 按需：Repo 内部事务辅助
 │       │   └── model/
 │       │       ├── user.go         # 用户表 DO、ORM 映射
 │       │       └── order.go        # 订单表 DO、ORM 映射
@@ -99,8 +99,8 @@
 - `consumer`：消息消费入口，解码和校验消息，调用 service，处理 ACK 与重试。
 - `job`：定时任务入口，准备执行参数并调用 service。
 - `entity`：统一存放业务数据结构体，包括 HTTP 请求与响应数据、service 输入与结果、共用业务对象、消息和业务任务参数，按业务分文件，不依赖 controller、consumer、job、service、repo 的实现或 Gin。
-- `service`：业务校验、权限规则、流程编排与事务边界；不依赖 HTTP 框架；可以导入 repo 包，字段及构造函数依赖接口，不绑定具体实现类型。
-- `repo`：数据库、缓存、外部 HTTP 调用、消息发布的具体实现；不依赖 controller 的请求或响应类型。
+- `service`：业务校验、权限规则、流程编排，不编写事务；不依赖 HTTP 框架；可以导入 repo 包，字段及构造函数依赖接口，不绑定具体实现类型。
+- `repo`：数据库、缓存、外部 HTTP 调用、消息发布的具体实现；封装完整原子操作及事务，不依赖 controller 的请求或响应类型。
 - `app`：创建具体实现，通过构造函数注入依赖；负责进程级生命周期。
 - `pkg`：不包含业务知识的基础组件，不导入本项目的 internal 包。
 
@@ -182,7 +182,7 @@ entity 统一放置业务数据结构体，包括 HTTP 请求参数、响应数�
 ### 定时任务
 
 - 任务入口放 `internal/job`，生成执行时间、批次等参数后调用 service。
-- 注册、启停放 `app/scheduler.go`，调度器基础封装确有需要时放 `pkg/scheduler`。
+- 注册放 `internal/job/register.go`，由 Wire 注入 Service；启停由 App 管理，调度器基础封装放 `pkg/scheduler`。
 - HTTP、MQ 与定时任务触发同一业务时复用 service，避免分别实现业务规则。
 
 ## 实施与验证
@@ -190,3 +190,11 @@ entity 统一放置业务数据结构体，包括 HTTP 请求参数、响应数�
 各功能按需落地。基础组件优先复用所选库的能力，封装项目需要统一的配置和生命周期行为。
 
 单元测试与被测代码就近放置；需要数据库、MQ 或完整 HTTP 服务的验证放 `integration-test`。代码落地后优先检查受影响包的编译、测试及依赖方向。
+
+## 事务职责
+
+Service 不编写事务，不向 Repo 传入事务回调，也不暴露 GORM 事务句柄。需要原子完成的多个数据库步骤由一个 Repo 方法封装，内部负责事务、锁、条件更新、提交和失败回滚。Service 调用该原子操作进行业务编排，不能以多次独立写操作代替事务；依赖数据库当前状态的校验也在事务内完成。事务中不进行不必要的外部 HTTP 调用。
+
+## 公共分页
+
+列表请求和结果复用 `internal/entity/page.go` 的 `Page`、`PageList[T]`。Controller 校验输入格式，Service 先 Normalize 再 Validate，Repo 使用已校验的 Offset/Limit；默认值、边界与空列表规则见技术栈公共规范。

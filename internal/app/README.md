@@ -81,7 +81,7 @@ Wire 官方仓库已归档，生成工具固定使用 v0.7.0：https://github.co
 
 ## 定时任务接入
 
-`internal/task/register.go` 的 `NewScheduler` 由 Wire 调用，使用零配置跟随 `time.Local`；当前注册列表为空，不会执行任何示例业务。新增任务时向构造函数注入所需 Service，在 `registrations` 中填写 `scheduler.Task{Name, Spec, Timeout, Handler}`，然后重新生成 Wire。注册失败会让应用初始化失败。
+`internal/job/register.go` 的 `NewScheduler` 由 Wire 调用，注入 HelloService，使用零配置跟随 `time.Local`；默认注册 Hello Job，每分钟整点调用 HelloService 并记录日志，任务超时 5 秒，不写业务数据。Handler 在 `internal/job/hello.go`，业务仍由 Service 提供。新增任务时注入所需 Service，在 `registrations` 中添加任务，然后重新生成 Wire。注册失败会让应用初始化失败。
 
 `cmd/app` 入口在加载配置、启动文件监听和组装应用前，将 `time.Local` 统一设为 `Asia/Shanghai`。此后 `time.Now()`、当前 Zap 时间日志、默认调度器和 MySQL DSN 的 `loc=Local` 使用这一进程本地时区。只在启动阶段设置，不在运行中修改；直接调用 `app.Initialize` 的其他入口需自行初始化时区。该设置不会改变 MySQL 服务端或会话时区，也不会覆盖显式使用 UTC 或其他时区的时间操作。
 

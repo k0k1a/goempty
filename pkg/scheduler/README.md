@@ -34,4 +34,4 @@ return s.Stop(stopCtx)
 - 重复 Start 不重复启动；必须调用 Stop 完成调度器清理，单独取消运行 context 不替代 Stop。Stop 可以在启动前调用；停止后不能重启或注册。
 - Stop 先停止调度、取消运行 context，再等待已有任务退出。关闭 context 只限制等待时间；超时返回可通过 `errors.Is` 识别的 context 错误，再次 Stop 可继续等待。停止超时后任务可能仍在运行，应避免任务忽略取消后继续访问已释放的依赖。
 
-应用在 `internal/task/register.go` 集中组装任务：把业务 Service 加入 `NewScheduler` 构造参数，将任务加入 `registrations`，再重新生成 Wire。当前没有真实定时业务，因此默认注册列表为空，不会产生示例任务的业务副作用。
+应用在 `internal/job/register.go` 集中组装任务：把业务 Service 加入 `NewScheduler` 构造参数，将任务加入 `registrations`，再重新生成 Wire。默认 Hello Job 每分钟整点调用 HelloService 并输出日志，超时 5 秒，不写业务数据；多实例会各自执行。

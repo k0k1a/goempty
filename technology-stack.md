@@ -17,10 +17,38 @@
 ## 错误处理约定
 
 - `entity.Error` 包含整数 `Code` 和可公开的 `Message`，错误类型、公共错误与后续具体业务错误统一放在 `internal/entity/error.go`；公共错误编号为 `100001`～`100008`，已有编号保持稳定。
-- Controller 通过 `response.RespondError`（位于 `controller/response/error.go`） 使用 `errors.As` 提取业务错误，再以 `errors.Is` 匹配已登记的预定义实例，映射 HTTP 状态码；支持 `%w` 包装。
-- 未登记的业务错误和普通 error 统一返回 HTTP 500、`code: -1`、`message: "未知错误"`，原始错误记录日志。
+- Controller 通过 `response.RespondError`（位于 `controller/response/error.go`） 使用 `errors.As` 提取业务错误，再按业务 code 匹配已登记映射，选择 HTTP 状态码；支持 `%w` 包装。
+- `entity.NewBusinessError(message)` 用于可公开的动态校验消息，返回 HTTP 422、code `-1`；与 HTTP 500 未知错误共享 code，调用方需要结合 HTTP 状态区分。禁止传入内部错误原文。
+- 未登记 code 的业务错误和普通 error 统一返回 HTTP 500、`code: -1`、`message: "未知错误"`，原始错误记录日志。
 - 普通 JSON 响应使用 `code/message/data` 外壳，成功 code 为 0；完整状态码映射和例外见 [HTTP 公共响应](internal/controller/response/README.md)。
 
 ## 版本约定
 
 - 已引入依赖的版本以 `go.mod` 为准；其他组件按实际需求选型。
+
+## 公共分页
+
+- 请求与结果复用 `entity.Page`、`PageList[T]`，结果放在公共响应 data 中，包含 page、page_size、total、list。
+- 页码默认 1，每页默认 20、最大 100；省略或为 0 时使用默认值。Service 先 Normalize 再 Validate，拒绝负数、超限及 offset 整数溢出，不静默截断，不设置固定最大页码。
+- Repo 按相同筛选条件查询分页前总数和当前页，使用稳定排序。超出最后一页返回空列表，保留实际 total；List 应初始化为空 slice，输出 `[]`。
+
+## 外部 HTTP 调用
+
+客户端按系统放在 repo/webapi，通过构造函数复用并依赖接口；默认不发起外部请求。使用标准库的最小示例见 [Hello 客户端](internal/repo/webapi/hello/README.md)。传递已有 Context，设置超时，检查 HTTP 与业务状态，限制并解析响应，可靠关闭响应体，不泄露凭据或上游原始响应。仅按幂等性和实际协议设计重试。
+
+## 缓存使用规范
+
+- 缓存访问、key 和序列化放在 repo/cache，Service 依赖对应接口；不预先创建通用缓存框架。
+- key 包含应用、环境、资源和版本，例如 `{APP_NAME}:{ENV}:products:v1:{id}`；多租户或多数据源还需加入隔离标识，不放入令牌或明文隐私数据。
+- 普通查询使用 cache-aside：命中则返回，未命中则查源并回填；区分不存在、反序列化失败和连接故障。
+- 对可降级的查询缓存，读取失败回源，写入失败保留本次源结果并记录安全日志；认证会话等权威状态不可按普通缓存降级放行。
+- TTL 根据数据新鲜度设置；空结果使用更短 TTL，区分有效空列表与缓存缺失。示例可用普通结果 5 分钟、空结果 30 秒，具体值由业务决定。
+- 源数据更新成功后按业务一致性要求失效缓存。热点并发回源、多实例协调和严格一致性需单独设计，不假定缓存回填本身能解决。
+
+## 定时任务
+
+任务入口放在 internal/job，默认 Hello Job 每分钟整点调用 HelloService，任务超时 5 秒。Wire 在启动前完成注册，App 统一管理启停。沿用调度器的取消、同任务跳过重叠、错误和 panic 日志规则；各进程独立调度，不提供跨实例去重。
+
+## 事务
+
+Service 不编写事务；Repo 以完整原子操作封装数据库事务、并发校验和回滚。数据库事务不覆盖外部系统副作用，不在事务内进行不必要的网络调用，详见目录职责。

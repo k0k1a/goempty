@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"goempty/config"
+	"goempty/internal/job"
 	"goempty/internal/repo/db"
 	"goempty/internal/service"
-	"goempty/internal/task"
 	"goempty/pkg/httpserver"
 	"goempty/pkg/scheduler"
 )
@@ -250,7 +250,7 @@ func TestRunShutdown(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			jobs, err := task.NewScheduler()
+			jobs, err := job.NewScheduler(service.NewHelloService(db.NewHelloRepo()))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -339,7 +339,7 @@ func newHTTPTestApp(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	jobs, err := task.NewScheduler()
+	jobs, err := job.NewScheduler(service.NewHelloService(db.NewHelloRepo()))
 	if err != nil {
 		return nil, err
 	}

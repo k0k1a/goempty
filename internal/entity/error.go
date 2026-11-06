@@ -1,5 +1,8 @@
 package entity
 
+// CodeBusinessError identifies public validation messages (HTTP 422).
+const CodeBusinessError = -1
+
 // Predefined errors pair stable API codes with public messages.
 // These shared instances must not be modified. HTTP status mapping belongs to controller/response.
 var (
@@ -23,6 +26,11 @@ type Error struct {
 // NewError creates an error with a stable code and a public message.
 func NewError(code int, message string) *Error {
 	return &Error{Code: code, Message: message}
+}
+
+// NewBusinessError accepts only messages safe to expose to callers.
+func NewBusinessError(message string) *Error {
+	return NewError(CodeBusinessError, message)
 }
 
 func (e *Error) Error() string {

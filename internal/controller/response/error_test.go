@@ -32,7 +32,9 @@ func TestRespondError(t *testing.T) {
 		{"unavailable", entity.ErrServiceUnavailable, 503, 100008, "服务暂时不可用"},
 		{"unexpected", errors.New("private database detail"), 500, -1, "未知错误"},
 		{"unregistered", entity.NewError(999999, "private detail"), 500, -1, "未知错误"},
-		{"same code and message different instance", entity.NewError(entity.ErrNotFound.Code, entity.ErrNotFound.Message), 500, -1, "未知错误"},
+		{"same code different instance", entity.NewError(entity.ErrNotFound.Code, "订单不存在"), 404, 100004, "订单不存在"},
+		{"public business message", entity.NewBusinessError("库存不足"), 422, -1, "库存不足"},
+		{"wrapped business message", fmt.Errorf("validation: %w", entity.NewBusinessError("格式无效")), 422, -1, "格式无效"},
 		{"typed nil", nilBusinessError, 500, -1, "未知错误"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -59,13 +61,5 @@ func TestRespondError(t *testing.T) {
 				t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
 			}
 		})
-	}
-}
-
-func TestBusinessStatusWrappedError(t *testing.T) {
-	err := fmt.Errorf("lookup failed: %w", entity.ErrNotFound)
-	status, ok := businessStatus(err)
-	if !ok || status != http.StatusNotFound {
-		t.Fatalf("businessStatus(wrapped ErrNotFound) = %d, %v", status, ok)
 	}
 }
