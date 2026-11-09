@@ -16,3 +16,12 @@ redis:
   read_timeout: 3s
   write_timeout: 3s
   pool_timeout: 4s
+
+mongodb:
+  uri: "mongodb://127.0.0.1:27017"
+  max_pool_size: 10
+  min_pool_size: 1
+  max_conn_idle_time: 5m
+  connect_timeout: 5s
+  server_selection_timeout: 5s
+  timeout: 5s

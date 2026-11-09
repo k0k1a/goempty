@@ -11,9 +11,11 @@ import (
 	"goempty/config"
 	"goempty/pkg/db"
 	"goempty/pkg/httpserver"
+	"goempty/pkg/mongodb"
 	"goempty/pkg/redis"
 
 	goredis "github.com/redis/go-redis/v9"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 func testDatabaseConfig() db.Config {
@@ -74,12 +76,17 @@ func TestInitializeMySQLLifecycle(t *testing.T) {
 	}
 	redisAddr := os.Getenv("GOEMPTY_TEST_REDIS_ADDR")
 	if redisAddr == "" {
-		t.Skip("GOEMPTY_TEST_REDIS_ADDR is not set; application requires MySQL and Redis")
+		t.Skip("GOEMPTY_TEST_REDIS_ADDR is not set")
+	}
+	mongoURI := os.Getenv("GOEMPTY_TEST_MONGODB_URI")
+	if mongoURI == "" {
+		t.Skip("GOEMPTY_TEST_MONGODB_URI is not set; application requires MySQL, Redis and MongoDB")
 	}
 	cfg := config.Config{
 		MySQL: testDatabaseConfig(),
 		Redis: redis.Config{Addr: redisAddr,
 			Username: os.Getenv("GOEMPTY_TEST_REDIS_USERNAME"), Password: os.Getenv("GOEMPTY_TEST_REDIS_PASSWORD")},
+		MongoDB:         mongodb.Config{URI: mongoURI, ConnectTimeout: time.Second, ServerSelectionTimeout: 3 * time.Second},
 		HTTP:            httpserver.Config{Addr: "127.0.0.1:0"},
 		ShutdownTimeout: time.Second,
 	}
@@ -97,7 +104,10 @@ func TestInitializeMySQLLifecycle(t *testing.T) {
 	if err := redis.Ping(ctx, a.redisClient); err != nil {
 		t.Fatal("assembled Redis is unavailable")
 	}
-	// An already canceled Run must automatically release both pools.
+	if err := mongodb.Ping(ctx, a.mongoClient); err != nil {
+		t.Fatal("assembled MongoDB is unavailable")
+	}
+	// An already canceled Run must automatically release all three pools.
 	canceled, stop := context.WithCancel(ctx)
 	stop()
 	if err := a.Run(canceled); err != nil {
@@ -108,6 +118,9 @@ func TestInitializeMySQLLifecycle(t *testing.T) {
 	}
 	if err := a.redisClient.Ping(ctx).Err(); !errors.Is(err, goredis.ErrClosed) {
 		t.Fatalf("Redis Ping after cleanup = %v, want ErrClosed", err)
+	}
+	if err := mongodb.Ping(ctx, a.mongoClient); !errors.Is(err, mongo.ErrClientDisconnected) {
+		t.Fatal("MongoDB remains connected after application cleanup")
 	}
 	a.Close()
 }

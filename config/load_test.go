@@ -85,6 +85,51 @@ func TestLoadRedisConfiguration(t *testing.T) {
 	}
 }
 
+func TestLoadMongoDBConfiguration(t *testing.T) {
+	setupConfig(t, "app_dev.yaml", `mongodb:
+  uri: "mongodb://127.0.0.1:27017"
+  max_pool_size: 10
+  min_pool_size: 2
+  max_conn_idle_time: 5m
+  connect_timeout: 5s
+  server_selection_timeout: 4s
+  timeout: 3s
+`)
+	t.Setenv("GOEMPTY_MONGODB_URI", "ignored")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := cfg.MongoDB
+	if err := m.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if m.URI != "mongodb://127.0.0.1:27017" || m.MaxPoolSize != 10 || m.MinPoolSize != 2 ||
+		m.MaxConnIdleTime != 5*time.Minute || m.ConnectTimeout != 5*time.Second ||
+		m.ServerSelectionTimeout != 4*time.Second || m.Timeout != 3*time.Second {
+		t.Fatal("MongoDB configuration was not decoded")
+	}
+	if Get().MongoDB != m {
+		t.Fatal("MongoDB snapshot differs from startup configuration")
+	}
+}
+
+func TestLoadMongoDBNegativePoolSize(t *testing.T) {
+	for _, field := range []string{"max_pool_size", "min_pool_size"} {
+		t.Run(field, func(t *testing.T) {
+			setupConfig(t, "app_dev.yaml", "mongodb:\n  uri: mongodb://127.0.0.1:27017\n  "+field+": -1\n")
+			cfg, err := Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Loading only decodes; startup validation must reject the signed value.
+			if err := cfg.MongoDB.Validate(); err == nil {
+				t.Fatal("negative MongoDB pool size survived startup validation")
+			}
+		})
+	}
+}
+
 func TestLoadEnvironmentSelection(t *testing.T) {
 	for _, tt := range []struct {
 		name, appName, env, file string
@@ -130,6 +175,8 @@ func TestLoadInvalidConfiguration(t *testing.T) {
 		{name: "unknown database option", content: "mysql:\n  unknown: true", want: "config: decode"},
 		{name: "invalid Redis duration", content: "redis:\n  dial_timeout: invalid", want: "config: decode"},
 		{name: "unknown Redis option", content: "redis:\n  unknown: true", want: "config: decode"},
+		{name: "invalid MongoDB duration", content: "mongodb:\n  connect_timeout: invalid", want: "config: decode"},
+		{name: "unknown MongoDB option", content: "mongodb:\n  unknown: true", want: "config: decode"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			setupConfig(t, "app_dev.yaml", tt.content)

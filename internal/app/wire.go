@@ -16,9 +16,10 @@ import (
 // initialize assembles dependencies and returns cleanup for transfer to App.
 func initialize(ctx context.Context, cfg config.Config) (*App, func(), error) {
 	wire.Build(
-		wire.FieldsOf(new(config.Config), "MySQL", "Redis", "HTTP", "ShutdownTimeout"),
+		wire.FieldsOf(new(config.Config), "MySQL", "Redis", "MongoDB", "HTTP", "ShutdownTimeout"),
 		newDatabase,
 		newRedis,
+		newMongoDB,
 		db.NewHelloRepo,
 		wire.Bind(new(db.HelloRepository), new(*db.HelloRepo)),
 		service.NewHelloService,

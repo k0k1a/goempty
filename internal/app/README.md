@@ -4,10 +4,10 @@ HTTP 中间件按 RequestID → AccessLog → Recovery → CORS 的顺序注册�
 
 Panic 错误日志额外包含 `stack`，保留原始 panic 调用位置；响应已经写出时不覆盖响应，只记录错误并中止后续处理。
 
-Wire 生成依赖组装代码，`App` 管理运行组件的生命周期。当前接入 MySQL、Redis、Gin、HTTP Server、定时调度器和 Hello Controller → Service → Repo 示例。
+Wire 生成依赖组装代码，`App` 管理运行组件的生命周期。当前接入 MySQL、Redis、MongoDB、Gin、HTTP Server、定时调度器和 Hello Controller → Service → Repo 示例。
 
-- `wire.go`：维护 Wire provider 和私有 injector `initialize(ctx, cfg)`，返回 `(*App, cleanup, error)`，创建 `HelloRepo`，将它绑定到 `db.HelloRepository` 接口，再创建 `HelloService`、`httpDependencies`、HTTP Server、定时调度器、MySQL 连接、Redis 客户端和 App，此时尚未监听 HTTP 或启动调度。不再维护单独的 `app.Config`。
-- `providers.go`：公开的 `Initialize(ctx, cfg)` 返回 `(*App, error)`，调用私有 `initialize` 并将清理函数交给 App。集中定义 `newDatabase`、`newRedis` 和 `newApp`。前两个分别调用 `pkg/db.New`、`pkg/redis.New` 创建共享连接并提供清理函数；Redis 初始化会执行 PING。`newApp` 调用 `New` 校验运行参数，再把连接保存到 App，使 Wire 能识别这些依赖并生成初始化和清理代码。后续业务消费者通过构造函数接收连接，不通过全局变量访问。
+- `wire.go`：维护 Wire provider 和私有 injector `initialize(ctx, cfg)`，返回 `(*App, cleanup, error)`，创建 `HelloRepo`，将它绑定到 `db.HelloRepository` 接口，再创建 `HelloService`、`httpDependencies`、HTTP Server、定时调度器、MySQL 连接、Redis 和 MongoDB 客户端及 App，此时尚未监听 HTTP 或启动调度。不再维护单独的 `app.Config`。
+- `providers.go`：公开的 `Initialize(ctx, cfg)` 返回 `(*App, error)`，调用私有 `initialize` 并将清理函数交给 App。集中定义 `newDatabase`、`newRedis`、`newMongoDB` 和 `newApp`，分别复用对应 pkg 包创建共享连接并提供清理函数；Redis 和 MongoDB 初始化会执行 Ping。`newApp` 调用 `New` 校验运行参数，再把连接保存到 App，使 Wire 能识别这些依赖并生成初始化和清理代码。后续业务消费者通过构造函数接收连接，不通过全局变量访问。
 - `wire_gen.go`：生成文件，不手工修改；普通构建不需要执行 Wire。
 - `app.go`：`App.Run(ctx)` 启动定时调度器并运行 HTTP 服务；取消或 HTTP 退出时停止调度、取消运行任务，在同一个独立关闭超时内并行等待 HTTP 请求和定时任务完成。HTTP 超时强制关闭连接；任务超时返回错误，不能强制终止不响应 context 的 Handler。退出前调用 `App.Close()` 释放依赖，提前取消和启动失败也会清理；`Close()` 通过 `sync.Once` 保证清理只执行一次。
 - `http.go`：`newHTTPHandler(deps)` 手写创建 Gin Engine 和 Controller，按上述顺序装配中间件并集中注册路由；`newHTTPServer(cfg, deps)` 将 Gin Engine 交给 `pkg/httpserver`。Controller 只处理请求，不负责注册路由，也不由 Wire 创建。RequestID、AccessLog 和 Recovery 实现在 `internal/controller/middleware/middleware.go`，直接依赖公共 response 和日志，不反向依赖 controller 包。
@@ -29,7 +29,7 @@ go run ./cmd/app
 
 入口只通过环境变量 `PORT` 决定端口，未设置时默认 `8080`；显式设置时必须是 `1～65535` 的整数，空值或非法值启动失败，监听地址为 `:端口`。HTTP 超时固定在入口代码中：ReadHeaderTimeout 为 5 秒，ReadTimeout/WriteTimeout 为 15 秒，IdleTimeout 为 60 秒；不读取 YAML 或 `GOEMPTY_HTTP_*` 环境变量。
 
-关闭超时在入口固定为 10 秒，不从 YAML 或环境变量读取。MySQL DSN 和连接池参数从 YAML 的 `mysql` 段读取，Redis 连接参数从 `redis` 段读取，不提供环境变量覆盖。本地配置见 `configs/app_dev.yaml`，需先替换本地密码并准备 MySQL 和 Redis；test/prod 文件保留空模板，不保存线上配置，使用前需填写。完整说明见 [应用配置](../../config/README.md)。
+关闭超时在入口固定为 10 秒，不从 YAML 或环境变量读取。MySQL DSN 和连接池参数从 YAML 的 `mysql` 段读取，Redis 连接参数从 `redis` 段读取，MongoDB 连接参数从 `mongodb` 段读取，不提供环境变量覆盖。本地配置见 `configs/app_dev.yaml`，需先替换本地密码并准备 MySQL、Redis 和 MongoDB；test/prod 文件保留空模板，不保存线上配置，使用前需填写。完整说明见 [应用配置](../../config/README.md)。
 
 `config.Load()` 同时启动 Viper 文件监听；变化回调直接使用同一 Viper 实例重新反序列化，成功才替换内存配置，失败保留旧值。需要动态配置的业务通过 `config.Get()` 读取快照，不重启应用或重新执行 Wire 组装。
 
@@ -69,13 +69,13 @@ return application.Run(ctx)
 
 `Run` 仅调用一次；取消属于正常退出，启动或关闭失败返回错误。必须等待 `Run` 返回后才能退出进程。强制关闭连接不会终止 handler 的 goroutine，handler 应响应请求 context 的取消。
 
-MySQL 或 Redis 连接失败时应用启动失败。Wire 在后续装配失败时释放已创建的连接池（Redis 初始化失败时也会释放 MySQL）；成功初始化后由 App 持有 Wire 的清理函数。`Run` 完成 HTTP 和任务关闭（或关闭超时）后通过 `Close()` 先释放 Redis，再释放 MySQL 连接池；提前取消和运行失败同样会清理。清理失败由 provider 记录英文错误日志，`Close()` 不返回错误。
+MySQL、Redis 或 MongoDB 连接失败时应用启动失败。Wire 在后续装配失败时释放已创建的连接池（Redis 初始化失败时释放 MySQL，MongoDB 初始化失败时释放 Redis 和 MySQL）；成功初始化后由 App 持有 Wire 的清理函数。`Run` 完成 HTTP 和任务关闭（或关闭超时）后通过 `Close()` 依次释放 MongoDB、Redis、MySQL 连接池；提前取消和运行失败同样会清理。MongoDB 清理使用保留调用链值但独立于启动取消状态的 Context，超时取 `ShutdownTimeout`；这段时限在 HTTP 和任务排空之后开始，整个退出过程不保证在入口的 10 秒内完成。清理失败由 provider 记录英文错误日志，`Close()` 不返回错误。
 
 入口使用 `defer application.Close()` 兜底，保证初始化成功但未调用 `Run` 时也能释放资源；与 `Run` 的自动清理不会重复执行。`Close()` 只释放依赖，应在 `Run` 返回后或从未运行时调用；停止正在运行的应用应取消传给 `Run` 的 context。进程退出码和日志最终关闭仍由 `main` 负责，App 不调用 `os.Exit`。
 
-MySQL 和 Redis 配置变更需重启，Viper 重载不会重新组装连接池。HTTP 和关闭超时由入口填充在启动配置副本上，不从 YAML 解码；`config.Get()` 仍只提供文件快照，这两个字段保持零值。`/hello` 仍返回固定问候，不建表、不执行自动迁移、不读写缓存，`/healthz` 和 `/readyz` 仍返回 HTTP 200 空响应体，不检查 MySQL 或 Redis。
+MySQL、Redis 和 MongoDB 配置变更需重启，Viper 重载不会重新组装连接池。HTTP 和关闭超时由入口填充在启动配置副本上，不从 YAML 解码；`config.Get()` 仍只提供文件快照，这两个字段保持零值。`/hello` 仍返回固定问候，不建表、不执行自动迁移、不读写缓存或 MongoDB 集合，`/healthz` 和 `/readyz` 仍返回 HTTP 200 空响应体，不检查 MySQL、Redis 或 MongoDB。
 
-测试 Redis provider 生命周期时设置 `GOEMPTY_TEST_REDIS_ADDR`，按需设置 `GOEMPTY_TEST_REDIS_USERNAME` 和 `GOEMPTY_TEST_REDIS_PASSWORD`。应用组装生命周期测试还需设置 `GOEMPTY_TEST_MYSQL_DSN`。运行 `go test ./internal/app ./integration-test`；未配置对应服务时相关真实服务测试跳过，不安装服务、不写业务数据。
+测试 Redis provider 生命周期时设置 `GOEMPTY_TEST_REDIS_ADDR`，按需设置 `GOEMPTY_TEST_REDIS_USERNAME` 和 `GOEMPTY_TEST_REDIS_PASSWORD`。MongoDB provider 生命周期测试设置 `GOEMPTY_TEST_MONGODB_URI`；应用组装生命周期测试需同时设置 Redis、MongoDB 和 `GOEMPTY_TEST_MYSQL_DSN`。运行 `go test ./internal/app ./integration-test`；只连接隔离服务，未配置对应服务时相关真实服务测试跳过，不安装服务、不写业务数据。
 
 Wire 官方仓库已归档，生成工具固定使用 v0.7.0：https://github.com/google/wire 。
 

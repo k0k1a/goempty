@@ -13,6 +13,7 @@ import (
 	"goempty/pkg/scheduler"
 
 	goredis "github.com/redis/go-redis/v9"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"gorm.io/gorm"
 )
 
@@ -21,6 +22,7 @@ import (
 type App struct {
 	database        *gorm.DB
 	redisClient     *goredis.Client
+	mongoClient     *mongo.Client
 	httpServer      *httpserver.Server
 	scheduler       *scheduler.Scheduler
 	shutdownTimeout time.Duration

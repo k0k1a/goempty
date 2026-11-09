@@ -7,6 +7,7 @@ import (
 
 	"goempty/pkg/db"
 	"goempty/pkg/httpserver"
+	"goempty/pkg/mongodb"
 	"goempty/pkg/redis"
 )
 
@@ -14,6 +15,7 @@ import (
 type Config struct {
 	MySQL           db.Config         `mapstructure:"mysql"`
 	Redis           redis.Config      `mapstructure:"redis"`
+	MongoDB         mongodb.Config    `mapstructure:"mongodb"`
 	HTTP            httpserver.Config `mapstructure:"-"`
 	ShutdownTimeout time.Duration     `mapstructure:"-"`
 }

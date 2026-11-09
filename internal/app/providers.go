@@ -2,16 +2,19 @@ package app
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"goempty/config"
 	"goempty/pkg/db"
 	"goempty/pkg/httpserver"
 	"goempty/pkg/log"
+	"goempty/pkg/mongodb"
 	"goempty/pkg/redis"
 	"goempty/pkg/scheduler"
 
 	goredis "github.com/redis/go-redis/v9"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -54,14 +57,34 @@ func newRedis(ctx context.Context, cfg redis.Config) (*goredis.Client, func(), e
 	}, nil
 }
 
+// newMongoDB owns the shared client. Wire cleans it up on assembly failure;
+// App releases it after HTTP and task shutdown, even if startup was canceled.
+func newMongoDB(ctx context.Context, cfg mongodb.Config, shutdownTimeout time.Duration) (*mongo.Client, func(), error) {
+	if shutdownTimeout <= 0 {
+		return nil, nil, errors.New("app: shutdown timeout must be positive")
+	}
+	client, err := mongodb.New(ctx, cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	return client, func() {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
+		defer cancel()
+		if err := mongodb.Close(cleanupCtx, client); err != nil {
+			log.Error(cleanupCtx, "Close MongoDB failed", zap.Error(err))
+		}
+	}, nil
+}
+
 // App retains the shared pools for its lifetime; business consumers receive
 // them directly through their constructors when storage-backed code is added.
-func newApp(server *httpserver.Server, jobs *scheduler.Scheduler, shutdownTimeout time.Duration, handle *gorm.DB, client *goredis.Client) (*App, error) {
+func newApp(server *httpserver.Server, jobs *scheduler.Scheduler, shutdownTimeout time.Duration, handle *gorm.DB, client *goredis.Client, mongoClient *mongo.Client) (*App, error) {
 	a, err := New(server, jobs, shutdownTimeout)
 	if err != nil {
 		return nil, err
 	}
 	a.database = handle
 	a.redisClient = client
+	a.mongoClient = mongoClient
 	return a, nil
 }

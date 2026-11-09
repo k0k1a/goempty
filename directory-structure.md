@@ -21,7 +21,7 @@
 │   ├── app/
 │   │   ├── app.go                  # 组装依赖，统一管理启动、关闭与资源释放
 │   │   ├── http.go                 # 创建 HTTP 服务和 Controller，集中装配路由和中间件
-│   │   ├── providers.go            # Initialize 入口、MySQL/Redis provider 与清理函数
+│   │   ├── providers.go            # Initialize 入口、MySQL/Redis/MongoDB provider 与清理函数
 │   │   ├── wire.go                 # Wire 依赖声明与私有 injector
 │   │   ├── wire_gen.go             # Wire 生成的组装及失败清理代码
 │   │   ├── messaging.go            # 按需：注册消息消费者，管理消费启停
@@ -72,6 +72,7 @@
 │   ├── log/                       # 日志初始化、Context 请求标识与通用封装
 │   ├── db/                        # MySQL / GORM 连接与连接池初始化
 │   ├── redis/                     # Redis 客户端初始化
+│   ├── mongodb/                   # MongoDB 客户端初始化
 │   ├── httpclient/                # 通用 HTTP 客户端配置
 │   ├── httpserver/                # HTTP 服务超时、启动与优雅关闭
 │   ├── rabbitmq/                  # 消息中间件基础封装，按实际选型命名

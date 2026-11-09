@@ -44,13 +44,22 @@ func initialize(ctx context.Context, cfg config.Config) (*App, func(), error) {
 		cleanup()
 		return nil, nil, err
 	}
-	app, err := newApp(server, scheduler, duration, gormDB, client)
+	mongodbConfig := cfg.MongoDB
+	mongoClient, cleanup3, err := newMongoDB(ctx, mongodbConfig, duration)
 	if err != nil {
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
+	app, err := newApp(server, scheduler, duration, gormDB, client, mongoClient)
+	if err != nil {
+		cleanup3()
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
 	return app, func() {
+		cleanup3()
 		cleanup2()
 		cleanup()
 	}, nil

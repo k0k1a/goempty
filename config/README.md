@@ -1,6 +1,6 @@
 # 应用配置
 
-`config` 包使用 Viper 加载启动配置，返回普通 Go 结构体。`Config.MySQL` 复用 `pkg/db.Config`，`Config.Redis` 复用 `pkg/redis.Config`，提供连接和连接池参数。`Config.HTTP` 和 `Config.ShutdownTimeout` 使用 `mapstructure:"-"` 排除 YAML 解码，由 `main` 在加载后的启动副本中设置，随后将完整的 `config.Config` 直接传给 `app.Initialize(ctx, cfg)`。HTTP 超时和关闭超时固定设置，端口独立读取 `PORT`。
+`config` 包使用 Viper 加载启动配置，返回普通 Go 结构体。`Config.MySQL` 复用 `pkg/db.Config`，`Config.Redis` 复用 `pkg/redis.Config`，`Config.MongoDB` 复用 `pkg/mongodb.Config`，提供连接和连接池参数。`Config.HTTP` 和 `Config.ShutdownTimeout` 使用 `mapstructure:"-"` 排除 YAML 解码，由 `main` 在加载后的启动副本中设置，随后将完整的 `config.Config` 直接传给 `app.Initialize(ctx, cfg)`。HTTP 超时和关闭超时固定设置，端口独立读取 `PORT`。
 
 ## 选择环境文件
 
@@ -20,7 +20,7 @@ $env:PORT = "9090"
 go run ./cmd/app
 ```
 
-以上选择 `configs/app_prod.yaml`；先填写该文件中的 MySQL 和 Redis 配置并确保服务可用，初始化成功后监听 `:9090`。编译后可使用同样的环境变量启动 `.\app.exe`。
+以上选择 `configs/app_prod.yaml`；先填写该文件中的 MySQL、Redis 和 MongoDB 配置并确保服务可用，初始化成功后监听 `:9090`。编译后可使用同样的环境变量启动 `.\app.exe`。
 
 配置路径以进程启动时的工作目录为基准，部署时将 `configs/` 放在该目录。`APP_NAME`、`ENV` 在 `pkg/env` 包初始化时读取并保存在私有变量中，通过 `AppName()`、`Env()` 供应用配置与默认日志共用；运行时修改环境变量不会改变已读取的值，由开发与部署人员设置，直接用于拼接文件名，不额外校验名称格式。不再提供 `-config` 参数。
 
@@ -53,7 +53,7 @@ mysql:
 
 先准备本地 MySQL、`goempty` 数据库和账号，将 `CHANGE_ME` 替换为本地密码。程序不安装 MySQL，也不创建数据库或表。本地 YAML 可保存本地凭据，不保存线上配置；不读取 `GOEMPTY_MYSQL_DSN`。`loc=Local` 使用应用进程的本地时区，`cmd/app` 入口统一设置为 `Asia/Shanghai`；此项只影响驱动的时间处理，不修改 MySQL 服务端或会话时区。
 
-`app_test.yaml` 和 `app_prod.yaml` 保持空模板，运行这些环境前需自行填写相应 `mysql` 和 `redis` 配置；缺少配置会在初始化阶段启动失败。不提供线上连接信息。
+`app_test.yaml` 和 `app_prod.yaml` 保持空模板，运行这些环境前需自行填写相应 `mysql`、`redis` 和 `mongodb` 配置；缺少配置会在初始化阶段启动失败。不提供线上连接信息。
 
 DSN 必须包含数据库名、`parseTime=true`，并设置正值 `timeout`、`readTimeout`、`writeTimeout`。初始化复用 `pkg/db.New`，context 仅在初始化前检查，连接过程由 DSN 网络超时约束，并非初始化总超时。连接池要求最大连接数大于零、空闲连接数在零至最大连接数之间、连接有效期非负。
 
@@ -79,13 +79,34 @@ redis:
 
 只支持单机 Redis；地址为 `host:port`，DB 非负，连接池大小和超时非负，显式设置 pool_size 时 min_idle_conns 不得超过它。连接池与超时零值使用 go-redis 默认值。空 username/password 用于本地无认证服务；需要认证时填写实际信息，不提交生产凭据。配置只从 YAML 读取，不绑定环境变量覆盖。
 
-应用通过 `pkg/redis.New` 创建一个共享客户端并执行 PING；Redis 不可用时启动失败。业务消费者后续通过构造函数接收客户端。退出时先等待 HTTP 关闭，再释放 Redis 和 MySQL 连接池。文件重载不会重建 Redis 客户端，修改连接配置后需重启。
+应用通过 `pkg/redis.New` 创建一个共享客户端并执行 PING；Redis 不可用时启动失败。业务消费者后续通过构造函数接收客户端。退出时先等待 HTTP 和任务关闭，再依次释放 MongoDB、Redis 和 MySQL 连接池。文件重载不会重建 Redis 客户端，修改连接配置后需重启。
+
+## MongoDB
+
+开发环境默认连接本机 MongoDB；三个环境均将其作为启动必需依赖。`app_dev.yaml` 示例：
+
+```yaml
+mongodb:
+  uri: "mongodb://127.0.0.1:27017"
+  max_pool_size: 10
+  min_pool_size: 1
+  max_conn_idle_time: 5m
+  connect_timeout: 5s
+  server_selection_timeout: 5s
+  timeout: 5s
+```
+
+按需在 URI 中设置认证、TLS、副本集等参数，不提交真实生产凭据。只从 YAML 读取，不提供环境变量覆盖。正值字段覆盖 URI 对应参数，零值保留 URI 或驱动默认值；时长非负，最小连接数不能超过有效最大值。完整参数边界见 [MongoDB](../pkg/mongodb/README.md)。
+
+应用通过 `pkg/mongodb.New` 创建共享客户端并 Ping；失败则启动失败，并由 Wire 清理此前创建的 Redis 和 MySQL 连接。App 在 HTTP 和任务关闭后依次释放 MongoDB、Redis、MySQL。MongoDB 清理使用独立 Context，超时取 `ShutdownTimeout`（入口为 10 秒），不继承启动 Context 的取消状态；这是 HTTP 和任务排空之后额外的清理时限，不保证整个退出过程在 10 秒内结束。初始化 Ping 受调用方 Context 及驱动超时约束，但 SRV DNS 解析及 TLS 文件读取不承诺受该 Context 限制。
+
+MongoDB 连接配置变更需重启，不自动创建业务集合或索引；`/hello`、`/healthz`、`/readyz` 不读写或探测 MongoDB。
 
 ## 动态加载
 
 入口启动时调用一次 `Load()`，首次加载失败时启动失败。随后通过 Viper 的 `WatchConfig()` 和 `OnConfigChange()` 监听选中的文件。Viper 尝试重新读取文件后执行回调，回调直接调用同一实例的 `v.UnmarshalExact()`；反序列化成功后整体替换内存配置，失败则记录错误并保留旧值，不重启应用。
 
-`Load()` 和重载回调只负责读取与反序列化，不调用 MySQL/Redis 配置的 `Validate()`；连接参数的语义校验在启动组装依赖时执行。重载成功不代表新的连接参数有效或已应用到现有连接池。
+`Load()` 和重载回调只负责读取与反序列化，不调用 MySQL/Redis/MongoDB 配置的 `Validate()`；连接参数的语义校验在启动组装依赖时执行。重载成功不代表新的连接参数有效或已应用到现有连接池。
 
 业务通过 `config.Get()` 获取最新成功反序列化的文件配置快照，其中 HTTP 和关闭超时保持零值，不包含 `main` 对启动副本的赋值。`Load()` 的返回值只是启动时的快照，已有变量不会自动变化。每次请求或任务开始时读取一次即可。读写通过读写锁保护；以后增加 map、slice 等引用字段时，调用方不得修改快照中的内容。
 
