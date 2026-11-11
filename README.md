@@ -50,7 +50,7 @@ MySQL / Redis / MongoDB 真实服务测试在缺少对应变量时跳过，不�
 | [目录职责](directory-structure.md) | 分层、对象复用、Repo 事务职责 |
 | [技术栈与公共规范](technology-stack.md) | 组件选型、错误、分页、缓存规则 |
 | [应用组装](internal/app/README.md) | Wire、路由、生命周期和任务接入 |
-| [HTTP 公共响应](internal/controller/response/README.md) | HTTP 状态与业务错误映射 |
+| [HTTP 公共响应](internal/controller/response/README.md) | 公共响应与业务错误码 |
 | [HTTP Server](pkg/httpserver/README.md)、[日志](pkg/log/README.md)、[调度器](pkg/scheduler/README.md) | 组件使用和边界 |
 | [MongoDB](pkg/mongodb/README.md) | 客户端封装、配置和连接测试 |
 | [外部 HTTP 示例](internal/repo/webapi/hello/README.md) | 标准库客户端、超时、取消和响应解析 |

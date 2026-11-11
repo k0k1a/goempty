@@ -5,7 +5,6 @@ import (
 	"goempty/internal/controller/response"
 	"goempty/pkg/log"
 	"io"
-	"net/http"
 	"runtime/debug"
 	"time"
 
@@ -39,7 +38,7 @@ func Recovery() gin.HandlerFunc {
 		}
 		log.Error(c.Request.Context(), "HTTP request failed",
 			zap.Error(fmt.Errorf("HTTP panic: %v", recovered)), zap.ByteString("stack", debug.Stack()))
-		response.Failure(c, http.StatusInternalServerError, -1, "未知错误")
+		response.Failure(c, -1, "未知错误")
 	})
 }
 

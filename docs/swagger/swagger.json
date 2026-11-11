@@ -49,7 +49,7 @@
                             }
                         }
                     },
-                    "500": {
+                    "400": {
                         "description": "Internal error; code is -1, data is null",
                         "schema": {
                             "$ref": "#/definitions/response.Response-any"
@@ -99,14 +99,18 @@
             "type": "object",
             "properties": {
                 "code": {
+                    "description": "业务状态码，0 表示成功，非 0 表示失败；未知内部错误为 -1",
                     "type": "integer"
                 },
-                "data": {},
+                "data": {
+                    "description": "接口业务数据；失败时为 null"
+                },
                 "message": {
+                    "description": "响应消息，成功时为 success，失败时为可公开的错误说明",
                     "type": "string"
                 },
                 "request_id": {
-                    "description": "RequestID is reserved and currently omitted; use the X-Request-ID header.",
+                    "description": "预留的可选请求 ID，当前不输出此字段；实际请求 ID 通过 X-Request-ID 响应头返回",
                     "type": "string"
                 }
             }
@@ -115,16 +119,23 @@
             "type": "object",
             "properties": {
                 "code": {
+                    "description": "业务状态码，0 表示成功，非 0 表示失败；未知内部错误为 -1",
                     "type": "integer"
                 },
                 "data": {
-                    "$ref": "#/definitions/entity.HelloResponse"
+                    "description": "接口业务数据；失败时为 null",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entity.HelloResponse"
+                        }
+                    ]
                 },
                 "message": {
+                    "description": "响应消息，成功时为 success，失败时为可公开的错误说明",
                     "type": "string"
                 },
                 "request_id": {
-                    "description": "RequestID is reserved and currently omitted; use the X-Request-ID header.",
+                    "description": "预留的可选请求 ID，当前不输出此字段；实际请求 ID 通过 X-Request-ID 响应头返回",
                     "type": "string"
                 }
             }

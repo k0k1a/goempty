@@ -22,11 +22,11 @@
 ## 错误处理约定
 
 - `entity.Error` 包含整数 `Code` 和可公开的 `Message`，错误类型、公共错误与后续具体业务错误统一放在 `internal/entity/error.go`；公共错误编号为 `100001`～`100008`，已有编号保持稳定。
-- Controller 通过 `response.RespondError`（位于 `controller/response/error.go`） 使用 `errors.As` 提取业务错误，再按业务 code 匹配已登记映射，选择 HTTP 状态码；支持 `%w` 包装。
-- 请求绑定失败使用 `response.RespondBindError(c, err)`。应用启动时通过官方字段名回调配置 Gin 已有 validator；JSON/Form 标签同名，不引入翻译器，校验失败时 message 返回第一条错误字段的 JSON/Form 标签值加固定文案，例如 `name 格式校验失败`，其余输入错误统一返回 HTTP 400、code `100001`、`请求参数不合法`；不暴露原始错误及请求值，完整边界见 [HTTP 公共响应](internal/controller/response/README.md)。
-- `entity.NewBusinessError(message)` 用于可公开的动态校验消息，返回 HTTP 422、code `-1`；与 HTTP 500 未知错误共享 code，调用方需要结合 HTTP 状态区分。禁止传入内部错误原文。
-- 未登记 code 的业务错误和普通 error 统一返回 HTTP 500、`code: -1`、`message: "未知错误"`，原始错误记录日志。
-- 普通 JSON 响应使用 `code/message/data` 外壳，成功 code 为 0；完整状态码映射和例外见 [HTTP 公共响应](internal/controller/response/README.md)。
+- Controller 通过 `response.RespondError`（位于 `controller/response/error.go`） 使用 `errors.As` 提取业务错误，直接返回其 Code 和公开 Message，无需登记 code；支持 `%w` 包装。
+- 请求绑定与格式校验沿用 Gin 的 `ShouldBind*` 方法和 `binding` 标签；失败时调用 `response.RespondError(c, entity.ErrInvalidArgument)`，统一返回 HTTP 400、code `100001`、`请求参数不合法`，不直接返回原始绑定错误或请求值。见 [HTTP 公共响应](internal/controller/response/README.md)。
+- `entity.NewBusinessError(message)` 用于可公开的动态校验消息，返回 HTTP 400、code `-1`；与未知错误共享 code 和 HTTP 状态，需要稳定区分时使用独立业务 code。禁止传入内部错误原文。
+- 普通 error（包括类型化 nil 业务错误）统一返回 HTTP 400、`code: -1`、`message: "未知错误"`，原始错误记录日志。
+- 普通 JSON 响应使用 `code/message/data` 外壳，成功固定 HTTP 200、code 为 0，失败固定 HTTP 400；公共错误码和例外见 [HTTP 公共响应](internal/controller/response/README.md)。
 
 ## 版本约定
 

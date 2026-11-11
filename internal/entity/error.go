@@ -1,10 +1,10 @@
 package entity
 
-// CodeBusinessError identifies public validation messages (HTTP 422).
+// CodeBusinessError is the default code for public business validation messages.
 const CodeBusinessError = -1
 
 // Predefined errors pair stable API codes with public messages.
-// These shared instances must not be modified. HTTP status mapping belongs to controller/response.
+// These shared instances must not be modified. HTTP error responses belong to controller/response.
 var (
 	ErrInvalidArgument    = NewError(100001, "请求参数不合法")
 	ErrUnauthenticated    = NewError(100002, "请先登录")

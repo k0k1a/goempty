@@ -65,9 +65,9 @@ func TestHTTPAccessAndPanicLogs(t *testing.T) {
 		status        int
 	}{
 		"success":   {http.MethodGet, "/users/:id", http.StatusOK},
-		"missing":   {http.MethodGet, "", http.StatusNotFound},
-		"method":    {http.MethodPost, "", http.StatusMethodNotAllowed},
-		"panic":     {http.MethodGet, "/panic", http.StatusInternalServerError},
+		"missing":   {http.MethodGet, "", http.StatusBadRequest},
+		"method":    {http.MethodPost, "", http.StatusBadRequest},
+		"panic":     {http.MethodGet, "/panic", http.StatusBadRequest},
 		"written":   {http.MethodGet, "/written-panic", http.StatusOK},
 		"preflight": {http.MethodOptions, "", http.StatusNoContent},
 	}

@@ -4,49 +4,16 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
-	"goempty/internal/controller/response"
 	"goempty/internal/repo/db"
 	"goempty/internal/service"
-	"goempty/pkg/httpserver"
 
 	"github.com/gin-gonic/gin"
 )
 
 type helloRepoStub struct {
 	message string
-}
-
-func TestHTTPBindingValidation(t *testing.T) {
-	deps := &httpDependencies{Hello: service.NewHelloService(helloRepoStub{message: "hello"})}
-	// Constructing the server must configure validation before requests arrive.
-	// New does not open a listener, so this test needs no external services.
-	if _, err := newHTTPServer(httpserver.Config{Addr: ":0"}, deps); err != nil {
-		t.Fatal(err)
-	}
-	handler := newHTTPHandler(deps)
-	handler.POST("/binding-test", func(c *gin.Context) {
-		var req struct {
-			InternalName string `json:"name" binding:"required"`
-		}
-		if err := c.ShouldBindJSON(&req); err != nil {
-			response.RespondBindError(c, err)
-			return
-		}
-		c.Status(http.StatusNoContent)
-	})
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/binding-test", strings.NewReader(`{}`)))
-	var body response.Response[any]
-	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
-		t.Fatal(err)
-	}
-	if recorder.Code != http.StatusBadRequest || body.Code != 100001 ||
-		body.Message != "name 格式校验失败" || body.Data != nil {
-		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
-	}
 }
 
 func (r helloRepoStub) Hello() string {
@@ -89,8 +56,8 @@ func TestHTTPHelloRoute(t *testing.T) {
 	for _, path := range []string{"/", "/missing"} {
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
-		if response.Code != http.StatusNotFound {
-			t.Errorf("GET %s status = %d, want %d", path, response.Code, http.StatusNotFound)
+		if response.Code != http.StatusBadRequest {
+			t.Errorf("GET %s status = %d, want %d", path, response.Code, http.StatusBadRequest)
 		}
 	}
 }
@@ -110,9 +77,9 @@ func TestHTTPFrameworkErrors(t *testing.T) {
 		status int
 		code   int
 	}{
-		{http.MethodGet, "/missing", http.StatusNotFound, 100004},
-		{http.MethodPost, "/hello", http.StatusMethodNotAllowed, 100001},
-		{http.MethodGet, "/panic", http.StatusInternalServerError, -1},
+		{http.MethodGet, "/missing", http.StatusBadRequest, 100004},
+		{http.MethodPost, "/hello", http.StatusBadRequest, 100001},
+		{http.MethodGet, "/panic", http.StatusBadRequest, -1},
 	} {
 		t.Run(tc.path, func(t *testing.T) {
 			recorder := httptest.NewRecorder()
@@ -128,10 +95,10 @@ func TestHTTPFrameworkErrors(t *testing.T) {
 			if recorder.Code != tc.status || body.Code != tc.code || string(body.Data) != "null" {
 				t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
 			}
-			if tc.status == http.StatusInternalServerError && body.Message != "未知错误" {
+			if tc.path == "/panic" && body.Message != "未知错误" {
 				t.Fatalf("private panic exposed: %s", recorder.Body.String())
 			}
-			if tc.status == http.StatusMethodNotAllowed && recorder.Header().Get("Allow") != http.MethodGet {
+			if tc.method == http.MethodPost && recorder.Header().Get("Allow") != http.MethodGet {
 				t.Fatalf("Allow = %q, want GET", recorder.Header().Get("Allow"))
 			}
 		})
@@ -154,7 +121,7 @@ func TestHTTPRecovery(t *testing.T) {
 		path   string
 		status int
 	}{
-		{"/panic", http.StatusInternalServerError},
+		{"/panic", http.StatusBadRequest},
 		{"/hello", http.StatusOK},
 	} {
 		response := httptest.NewRecorder()
@@ -176,9 +143,9 @@ func TestHTTPRequestID(t *testing.T) {
 		status int
 	}{
 		{http.MethodGet, "/hello", http.StatusOK},
-		{http.MethodGet, "/missing", http.StatusNotFound},
-		{http.MethodPost, "/hello", http.StatusMethodNotAllowed},
-		{http.MethodGet, "/panic-id", http.StatusInternalServerError},
+		{http.MethodGet, "/missing", http.StatusBadRequest},
+		{http.MethodPost, "/hello", http.StatusBadRequest},
+		{http.MethodGet, "/panic-id", http.StatusBadRequest},
 	} {
 		t.Run(tc.method+tc.path, func(t *testing.T) {
 			request := httptest.NewRequest(tc.method, tc.path, nil)

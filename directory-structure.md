@@ -68,7 +68,7 @@ service 放在同一个 Go 包内，通过业务文件和不同 Service 类型�
 - 入口负责绑定与格式校验，避免在 Service 中机械重复；Service 保证业务约束，兼顾 Job、消息等非 HTTP 调用。
 - 请求仅绑定调用方可设置的字段，可信身份由入口取得并显式传入；对外输出排除敏感字段。entity 不依赖 Gin 或各层实现，可携带序列化、绑定及校验标签。
 
-例外：业务错误放 `entity/error.go`，不包含 HTTP 状态；HTTP 状态映射与公共响应外壳放 `controller/response`；配置和基础组件类型放 `config` 或对应 `pkg` 包；组件实现与接口留在各自所属包。
+例外：业务错误放 `entity/error.go`，不包含 HTTP 状态；HTTP 响应输出与公共响应外壳放 `controller/response`；配置和基础组件类型放 `config` 或对应 `pkg` 包；组件实现与接口留在各自所属包。
 
 ## HTTP、MQ 与定时任务
 
@@ -139,13 +139,13 @@ MongoDB 优先使用单文档条件更新；多个文档需要共同成功或失
 │   ├── controller/                 # HTTP 接口适配，不承载核心业务逻辑
 │   │   ├── user.go                 # 用户 HTTP handler
 │   │   ├── order.go                # 订单 HTTP handler
-│   │   ├── error.go                # 404、405 路由错误入口
+│   │   ├── error.go                # 路由不存在、方法不支持的错误入口
 │   │   ├── middleware/
 │   │   │   ├── auth.go             # 按需：身份认证
 │   │   │   └── middleware.go       # 请求标识、访问日志与 panic 恢复
 │   │   └── response/
 │   │       ├── response.go         # 统一响应外壳：code、message、data 等
-│   │       └── error.go            # 业务错误解析、HTTP 状态映射与错误响应
+│   │       └── error.go            # 业务错误解析与统一错误响应
 │   ├── consumer/
 │   │   └── order.go                # 消息消费入口：解码、调用 service、ACK 与重试
 │   ├── job/

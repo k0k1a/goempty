@@ -32,7 +32,7 @@ func TestHTTPHealthEndpoints(t *testing.T) {
 
 			recorder = httptest.NewRecorder()
 			handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, path, nil))
-			if recorder.Code != http.StatusMethodNotAllowed || recorder.Header().Get("Allow") != http.MethodGet {
+			if recorder.Code != http.StatusBadRequest || recorder.Header().Get("Allow") != http.MethodGet {
 				t.Fatalf("POST status = %d, Allow = %q", recorder.Code, recorder.Header().Get("Allow"))
 			}
 		})

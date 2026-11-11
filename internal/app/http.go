@@ -5,7 +5,6 @@ import (
 
 	"goempty/internal/controller"
 	"goempty/internal/controller/middleware"
-	"goempty/internal/controller/response"
 	"goempty/internal/service"
 	"goempty/pkg/httpserver"
 
@@ -20,9 +19,6 @@ type httpDependencies struct {
 
 // newHTTPServer assembles the HTTP transport with the application's Gin handler.
 func newHTTPServer(cfg httpserver.Config, deps *httpDependencies) (*httpserver.Server, error) {
-	if err := response.InitBindingValidator(); err != nil {
-		return nil, err
-	}
 	return httpserver.New(cfg, newHTTPHandler(deps))
 }
 

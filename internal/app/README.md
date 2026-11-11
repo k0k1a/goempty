@@ -2,8 +2,6 @@
 
 HTTP 中间件按 RequestID → AccessLog → Recovery → CORS 的顺序注册。访问日志在请求处理完成后输出 `HTTP request completed`，包含 `method`、`route`、`status`、`duration_us` 和上下文中的 `request_id`；`route` 使用匹配的路由模板，未匹配时为空，不记录实际 URL、查询参数、请求体或请求头。AccessLog 位于 Recovery 外层，因此 panic 恢复后也会记录最终响应状态。
 
-HTTP Server 构造阶段先调用 `response.InitBindingValidator()`，在首次请求绑定或校验前通过官方字段名回调配置 Gin 共享 validator。初始化只执行一次，之后不替换共享引擎；不支持的引擎导致构造失败。字段标签、校验响应与安全兜底见 [HTTP 公共响应](../controller/response/README.md)。
-
 Panic 错误日志额外包含 `stack`，保留原始 panic 调用位置；响应已经写出时不覆盖响应，只记录错误并中止后续处理。
 
 Wire 生成依赖组装代码，`App` 管理运行组件的生命周期。当前接入 MySQL、Redis、MongoDB、Gin、HTTP Server、定时调度器和 Hello Controller → Service → Repo 示例。
@@ -35,7 +33,7 @@ go run ./cmd/app
 
 `config.Load()` 同时启动 Viper 文件监听；变化回调直接使用同一 Viper 实例重新反序列化，成功才替换内存配置，失败保留旧值。需要动态配置的业务通过 `config.Get()` 读取快照，不重启应用或重新执行 Wire 组装。
 
-`GET /hello` 返回 HTTP 200 和 JSON `{"code":0,"message":"success","data":{"message":"hello"}}`。未注册路径返回 404，不支持的方法返回 405，panic 返回 500；响应尚未写出时统一使用 JSON 外壳，code 为独立于 HTTP 状态码的整数业务码。错误解析与输出统一通过 `response.RespondError`，约定见 [HTTP 公共响应](../controller/response/README.md)。部署时建议先 `go build -o app ./cmd/app`，直接运行编译产物，并将退出信号发送给应用进程。Wire 接收 context 和配置结构体，不负责加载文件。
+`GET /hello` 返回 HTTP 200 和 JSON `{"code":0,"message":"success","data":{"message":"hello"}}`。未注册路径、不支持的方法及响应写出前的 panic 均返回 HTTP 400；响应尚未写出时统一使用 JSON 外壳，code 为独立于 HTTP 状态码的整数业务码。错误解析与输出统一通过 `response.RespondError`，约定见 [HTTP 公共响应](../controller/response/README.md)。部署时建议先 `go build -o app ./cmd/app`，直接运行编译产物，并将退出信号发送给应用进程。Wire 接收 context 和配置结构体，不负责加载文件。
 
 更新依赖组装后，在项目根目录运行：
 

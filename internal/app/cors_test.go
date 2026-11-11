@@ -26,9 +26,9 @@ func TestHTTPCORS(t *testing.T) {
 		{"ordinary request", http.MethodGet, "/hello", "", http.StatusOK},
 		{"cross origin", http.MethodGet, "/hello", "https://frontend.example", http.StatusOK},
 		{"another origin", http.MethodGet, "/hello", "https://other.example", http.StatusOK},
-		{"not found", http.MethodGet, "/missing", "https://frontend.example", http.StatusNotFound},
-		{"method not allowed", http.MethodPost, "/hello", "https://frontend.example", http.StatusMethodNotAllowed},
-		{"panic", http.MethodGet, "/cors-panic", "https://frontend.example", http.StatusInternalServerError},
+		{"not found", http.MethodGet, "/missing", "https://frontend.example", http.StatusBadRequest},
+		{"method not allowed", http.MethodPost, "/hello", "https://frontend.example", http.StatusBadRequest},
+		{"panic", http.MethodGet, "/cors-panic", "https://frontend.example", http.StatusBadRequest},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			request := httptest.NewRequest(tc.method, tc.path, nil)
