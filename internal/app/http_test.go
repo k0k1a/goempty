@@ -4,16 +4,49 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"goempty/internal/controller/response"
 	"goempty/internal/repo/db"
 	"goempty/internal/service"
+	"goempty/pkg/httpserver"
 
 	"github.com/gin-gonic/gin"
 )
 
 type helloRepoStub struct {
 	message string
+}
+
+func TestHTTPBindingValidation(t *testing.T) {
+	deps := &httpDependencies{Hello: service.NewHelloService(helloRepoStub{message: "hello"})}
+	// Constructing the server must configure validation before requests arrive.
+	// New does not open a listener, so this test needs no external services.
+	if _, err := newHTTPServer(httpserver.Config{Addr: ":0"}, deps); err != nil {
+		t.Fatal(err)
+	}
+	handler := newHTTPHandler(deps)
+	handler.POST("/binding-test", func(c *gin.Context) {
+		var req struct {
+			InternalName string `json:"name" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			response.RespondBindError(c, err)
+			return
+		}
+		c.Status(http.StatusNoContent)
+	})
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/binding-test", strings.NewReader(`{}`)))
+	var body response.Response[any]
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if recorder.Code != http.StatusBadRequest || body.Code != 100001 ||
+		body.Message != "name 格式校验失败" || body.Data != nil {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
 }
 
 func (r helloRepoStub) Hello() string {
