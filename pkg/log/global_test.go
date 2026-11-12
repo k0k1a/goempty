@@ -23,6 +23,8 @@ type globalEntry struct {
 	ExpectedLine int     `json:"expected_line"`
 	Time         string  `json:"time"`
 	RequestID    *string `json:"request_id"`
+	Task         string  `json:"task_name"`
+	TraceID      string  `json:"trace_id"`
 }
 
 func defaultLogEntries(t *testing.T, mode string) []globalEntry {
@@ -139,7 +141,7 @@ func TestDefaultLoggerProcess(t *testing.T) {
 		var group sync.WaitGroup
 		for i := range 10 {
 			group.Go(func() {
-				ctx := applog.WithRequestID(context.Background(), fmt.Sprintf("request-%d", i))
+				ctx := context.WithValue(context.Background(), "request_id", fmt.Sprintf("request-%d", i))
 				for j := range 100 {
 					applog.Info(ctx, fmt.Sprintf("%d:%d", i, j))
 				}
@@ -147,17 +149,28 @@ func TestDefaultLoggerProcess(t *testing.T) {
 		}
 		group.Wait()
 	case "request-id":
-		parent := context.WithValue(context.Background(), "request_id", "unrelated-key")
-		ctx := applog.WithRequestID(parent, "request-1")
+		parent := context.Background()
+		ctx := context.WithValue(parent, "request_id", "request-1")
 		for _, write := range []func(context.Context, string, ...zap.Field){applog.Info, applog.Warn, applog.Error} {
 			_, _, line, _ := runtime.Caller(0)
 			write(ctx, "with ID", zap.Int("expected_line", line+1))
 		}
-		applog.Info(applog.WithRequestID(ctx, "request-2"), "overridden ID")
+		applog.Info(context.WithValue(ctx, "request_id", "request-2"), "overridden ID")
 		applog.Info(ctx, "parent ID unchanged")
 		applog.Info(parent, "without ID")
-		applog.Info(applog.WithRequestID(ctx, ""), "empty ID")
+		applog.Info(context.WithValue(ctx, "request_id", ""), "empty ID")
 		applog.Info(nil, "nil context")
+	case "trace-id":
+		parent := context.WithValue(context.Background(), "request_id", "request-1")
+		ctx := context.WithValue(context.WithValue(parent, "task_name", "cleanup"), "trace_id", "trace-1")
+		for _, write := range []func(context.Context, string, ...zap.Field){applog.Info, applog.Warn, applog.Error} {
+			write(ctx, "task log")
+		}
+		applog.Info(context.WithValue(ctx, "trace_id", "trace-2"), "child")
+		applog.Info(ctx, "parent unchanged")
+		applog.Info(parent, "without task")
+		applog.Info(context.WithValue(ctx, "trace_id", ""), "empty task")
+		applog.Info(context.WithValue(ctx, "trace_id", 123), "non-string trace ID")
 	default:
 		t.Skip("subprocess helper")
 	}
@@ -166,6 +179,19 @@ func TestDefaultLoggerProcess(t *testing.T) {
 	}
 	if err := applog.Shutdown(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestDefaultLoggerTraceID(t *testing.T) {
+	entries := defaultLogEntries(t, "trace-id")
+	wantIDs := []string{"trace-1", "trace-1", "trace-1", "trace-2", "trace-1", "", "", ""}
+	if len(entries) != len(wantIDs) {
+		t.Fatalf("got %d entries, want %d", len(entries), len(wantIDs))
+	}
+	for i, entry := range entries {
+		if entry.Task != "" || entry.TraceID != wantIDs[i] || entry.RequestID == nil || *entry.RequestID != "request-1" {
+			t.Fatalf("entry %d: unexpected context fields: %+v", i, entry)
+		}
 	}
 }
 

@@ -30,6 +30,7 @@ return s.Stop(stopCtx)
 - 使用标准五字段表达式：`分 时 日 月 周`，例如 `0 2 * * *`；也支持 `@daily`、`@every 10m`，不接受六字段秒级表达式。`@every` 最小调度精度为秒，首次执行等待下一触发点，启动时不立即执行。
 - 不同任务并行；同一注册任务执行未结束时跳过后续触发，不排队、不补跑。同一个 Handler 以不同名称注册时视为不同任务。
 - 任务执行错误、panic（含堆栈）、成功耗时和跳过均通过 `pkg/log` 记录。panic 恢复后仍能继续调度。任务自行启动的 goroutine 不在恢复和等待范围内。
+- 每次实际执行生成新的 UUID v4，以字符串 key `"trace_id"` 写入 Context；`pkg/log` 自动为开始、成功、失败、panic 及下游日志附加 `trace_id`。Handler 应向下传递收到的 Context。调度器在自己的开始、成功、失败、panic、跳过及 ID 生成失败日志中手动添加 `task_name`，业务日志不自动附加任务名。重叠跳过不生成执行 ID；ID 生成失败时记录任务名和错误，不调用 Handler，不自动重试。
 - Start 的 context 传递给任务；每次运行按 Timeout 创建子 context，零值不增加超时。Handler 必须向下传递 context 并响应取消。超时不会强制结束 goroutine，不会自动重试。
 - 重复 Start 不重复启动；必须调用 Stop 完成调度器清理，单独取消运行 context 不替代 Stop。Stop 可以在启动前调用；停止后不能重启或注册。
 - Stop 先停止调度、取消运行 context，再等待已有任务退出。关闭 context 只限制等待时间；超时返回可通过 `errors.Is` 识别的 context 错误，再次 Stop 可继续等待。停止超时后任务可能仍在运行，应避免任务忽略取消后继续访问已释放的依赖。

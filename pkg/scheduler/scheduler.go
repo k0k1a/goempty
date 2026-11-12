@@ -13,6 +13,7 @@ import (
 
 	"goempty/pkg/log"
 
+	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 )
@@ -134,6 +135,12 @@ func (s *Scheduler) execute(task Task) {
 	if ctx.Err() != nil {
 		return
 	}
+	traceID, err := uuid.NewRandom()
+	if err != nil {
+		log.Error(ctx, "Generate task trace ID failed", zap.String("task_name", task.Name), zap.Error(err))
+		return
+	}
+	ctx = context.WithValue(ctx, "trace_id", traceID.String())
 	if task.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, task.Timeout)
@@ -143,16 +150,17 @@ func (s *Scheduler) execute(task Task) {
 	// Recover inside SkipIfStillRunning so its execution token is always returned.
 	defer func() {
 		if value := recover(); value != nil {
-			log.Error(ctx, "Scheduled task panicked", zap.String("task", task.Name),
+			log.Error(ctx, "Scheduled task panicked", zap.String("task_name", task.Name),
 				zap.Duration("duration", time.Since(started)), zap.Any("panic", value), zap.ByteString("stack", debug.Stack()))
 		}
 	}()
+	log.Info(ctx, "Scheduled task started", zap.String("task_name", task.Name))
 	if err := task.Handler(ctx); err != nil {
-		log.Error(ctx, "Scheduled task failed", zap.String("task", task.Name),
+		log.Error(ctx, "Scheduled task failed", zap.String("task_name", task.Name),
 			zap.Duration("duration", time.Since(started)), zap.Error(err))
 		return
 	}
-	log.Info(ctx, "Scheduled task completed", zap.String("task", task.Name), zap.Duration("duration", time.Since(started)))
+	log.Info(ctx, "Scheduled task completed", zap.String("task_name", task.Name), zap.Duration("duration", time.Since(started)))
 }
 
 // cronLogger adapts engine and skip diagnostics to the existing project logger.
@@ -161,7 +169,7 @@ type cronLogger struct{ name string }
 func (l cronLogger) Info(msg string, keysAndValues ...interface{}) {
 	fields := []zap.Field{zap.String("event", msg), zap.Any("details", keysAndValues)}
 	if l.name != "" {
-		log.Info(context.Background(), "Scheduled task skipped", append(fields, zap.String("task", l.name))...)
+		log.Info(context.Background(), "Scheduled task skipped", append(fields, zap.String("task_name", l.name))...)
 		return
 	}
 	log.Debug(context.Background(), "Scheduler event", fields...)

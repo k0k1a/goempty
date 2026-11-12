@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"fmt"
 	"goempty/internal/controller/response"
 	"goempty/pkg/log"
@@ -45,6 +46,6 @@ func Recovery() gin.HandlerFunc {
 // RequestID uses gin-contrib's default ID handling and attaches the ID to logs.
 func RequestID() gin.HandlerFunc {
 	return requestid.New(requestid.WithHandler(func(c *gin.Context, id string) {
-		c.Request = c.Request.WithContext(log.WithRequestID(c.Request.Context(), id))
+		c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), "request_id", id))
 	}))
 }

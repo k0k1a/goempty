@@ -21,23 +21,25 @@ import (
 func run() {
     ctx := context.Background()
     log.Info(ctx, "服务启动")
-    ctx = log.WithRequestID(ctx, "request-1")
+    ctx = context.WithValue(ctx, "request_id", "request-1")
     log.Warn(ctx, "请求较慢", zap.Int("duration_ms", 1500))
 }
 ```
 
-全局 `Debug/Info/Warn/Error` 的首参均为标准 `context.Context`。`WithRequestID(ctx, id)` 返回携带请求 ID 的子 Context，不修改父 Context；全局方法自动附加非空的 `request_id`。未设置 ID、ID 为空或日志方法收到 nil Context 时省略该字段。业务代码应传递已有 Context；应用入口等没有请求上下文的地方可使用 `context.Background()`。request_id 由 Context 管理，调用方不要再手动添加同名 Zap 字段。
+全局 `Debug/Info/Warn/Error` 的首参均为标准 `context.Context`，直接读取字符串 key `"request_id"` 和 `"trace_id"`，自动附加对应的非空字符串字段。未设置、值为空、值不是字符串或日志方法收到 nil Context 时省略对应字段。业务代码应传递已有 Context；应用入口等没有请求上下文的地方可使用 `context.Background()`。这两个 ID 由 Context 管理，调用方不要再手动添加同名 Zap 字段。
+
+调用方通过 `context.WithValue(ctx, "trace_id", id)` 设置执行 ID。调度器为每次实际执行生成 UUID v4 并写入 `trace_id`；Job、Service、Repo 持续传递收到的 Context 即可关联日志。`task_name` 由调度器在自己的日志中手动添加，日志包不读取任务名。独立 `*zap.Logger` 不自动读取这些 Context 字段。
 
 HTTP 中间件取得或生成请求 ID 后，应写回请求的标准 Context，供 Handler、Service 和 Repository 继续传递：
 
 ```go
-ctx := log.WithRequestID(c.Request.Context(), requestID)
+ctx := context.WithValue(c.Request.Context(), "request_id", requestID)
 c.Request = c.Request.WithContext(ctx)
 c.Header("X-Request-ID", requestID)
 c.Next()
 ```
 
-上述为 Gin 中间件内部用法示意；本包不依赖 Gin，不生成或校验请求 ID。`WithRequestID` 的父 Context 必须非 nil，内部采用私有类型的 key，与字符串 `"request_id"` 不互通。请求 ID 仅绑定到当前调用的日志，不修改全局 Logger。原先不带 ctx 的全局调用需要迁移；独立 `*zap.Logger` 的方法签名保持不变。
+上述为 Gin 中间件内部用法示意；本包不依赖 Gin，不生成或校验 ID。`context.WithValue` 的父 Context 必须非 nil，子 Context 覆盖不会修改父 Context。ID 仅绑定到当前调用的日志，不修改全局 Logger。原先不带 ctx 的全局调用需要迁移；独立 `*zap.Logger` 的方法签名保持不变。
 
 默认实例在包初始化时读取环境变量，须在启动进程前设置；运行中更改不会刷新默认实例。`APP_NAME`、`ENV` 在 `pkg/env` 包初始化时保存在私有变量中，通过只读访问函数与应用配置共用，未设置或为空时分别使用 `app`、`dev`，不校验或改写开发者提供的值。默认日志为 `logs/app_dev.log`，相对于进程启动工作目录；父目录自动创建，初始化时打开文件。`LEVEL` 非法或文件无法打开时，通过 `zap.Must` 终止启动。
 
