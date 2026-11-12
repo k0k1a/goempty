@@ -38,7 +38,7 @@ go run ./cmd/app
 更新依赖组装后，在项目根目录运行：
 
 ```sh
-go run github.com/google/wire/cmd/wire@v0.7.0 ./internal/app
+go run github.com/google/wire/cmd/wire@latest ./internal/app
 ```
 
 入口调用示例（配置由入口准备，Gin、中间件、路由和依赖在应用层内部组装）：
