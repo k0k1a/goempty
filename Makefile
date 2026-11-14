@@ -19,7 +19,7 @@ help:
 	  'make vet               Run go vet' \
 	  'make check             Run tests, vet and build in order' \
 	  'make test-integration  Run service tests (requires isolated services)' \
-	  'make wire              Generate Wire code using the latest version' \
+	  'make wire              Generate Wire code using Wire v0.7.0' \
 	  'make docs              Generate Swagger documentation'
 
 run:
@@ -47,7 +47,7 @@ test-integration:
 	go test -count=1 ./internal/app ./integration-test
 
 wire:
-	go run github.com/google/wire/cmd/wire@latest ./internal/app
+	go run github.com/google/wire/cmd/wire@v0.7.0 ./internal/app
 
 docs:
 	go run ./scripts/generate-api-docs

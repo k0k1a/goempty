@@ -41,7 +41,7 @@ Linux / macOS 安装 GNU Make 后，可在项目根目录使用以下命令；�
 | `make test` / `make vet` | 执行测试 / 静态检查 |
 | `make check` | 顺序执行测试、vet 和全包构建，失败即停止 |
 | `make test-integration` | 不使用测试缓存，运行应用组装和真实服务测试 |
-| `make wire` | 使用最新版本 Wire 生成依赖组装代码 |
+| `make wire` | 使用 Wire v0.7.0 生成依赖组装代码 |
 | `make docs` | 使用现有脚本生成 Swagger 文档 |
 
 例如 `ENV=test PORT=8081 make run`。普通构建不会自动生成 Wire 或 Swagger 文件；生成命令可能下载工具及其依赖，执行后需检查生成差异。
