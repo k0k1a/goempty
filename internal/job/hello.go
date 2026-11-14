@@ -11,17 +11,17 @@ import (
 	"go.uber.org/zap"
 )
 
-func helloTask(hello *service.HelloService) scheduler.Task {
-	handler := &helloHandler{service: hello}
+func helloTask(helloService *service.HelloService) scheduler.Task {
+	handler := &helloHandler{helloService: helloService}
 	return scheduler.Task{Name: "hello", Spec: "* * * * *", Timeout: 5 * time.Second, Handler: handler.Handle}
 }
 
-type helloHandler struct{ service *service.HelloService }
+type helloHandler struct{ helloService *service.HelloService }
 
 func (h *helloHandler) Handle(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	log.Info(ctx, "Hello task greeting", zap.String("message", h.service.Hello()))
+	log.Info(ctx, "Hello task greeting", zap.String("message", h.helloService.Hello()))
 	return nil
 }

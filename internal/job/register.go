@@ -8,12 +8,12 @@ import (
 
 // NewScheduler is the application's task registration entry point. Business
 // services should be constructor parameters as tasks are added to registrations.
-func NewScheduler(hello *service.HelloService) (*scheduler.Scheduler, error) {
+func NewScheduler(helloService *service.HelloService) (*scheduler.Scheduler, error) {
 	s, err := scheduler.New(scheduler.Config{})
 	if err != nil {
 		return nil, err
 	}
-	registrations := []scheduler.Task{helloTask(hello)}
+	registrations := []scheduler.Task{helloTask(helloService)}
 	for _, task := range registrations {
 		if err := s.Register(task); err != nil {
 			return nil, err

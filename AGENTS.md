@@ -1,6 +1,6 @@
 # AGENTS.md
 
-本项目用于创建新 Go 服务。沿用用户级工作模式、确认门禁、Git 操作和 Go 通用规范。
+本项目用于创建新 Go 服务。
 
 ## 阅读入口
 
@@ -8,42 +8,38 @@
 
 | 任务涉及 | 阅读章节 |
 | --- | --- |
-| 新增业务、调整分层或依赖 | [分层与依赖](directory-structure.md#分层与依赖) |
-| 类型、依赖及 receiver 命名 | [各层命名规范](directory-structure.md#各层命名规范) |
-| 输入、结果、数据库对象及跨层复用 | [对象与复用](directory-structure.md#对象与复用) |
-| HTTP、消息或定时任务入口 | [HTTP、MQ 与定时任务](directory-structure.md#httpmq-与定时任务) |
-| 原子操作、事务或并发更新 | [事务职责](directory-structure.md#事务职责) |
-| 技术选型、依赖或版本 | [组件选型](technology-stack.md#组件选型)、[版本约定](technology-stack.md#版本约定) |
-| 业务错误及 HTTP 响应 | [错误处理约定](technology-stack.md#错误处理约定) |
-| 列表与分页 | [公共分页](technology-stack.md#公共分页) |
-| 外部 HTTP 调用 | [外部 HTTP 调用](technology-stack.md#外部-http-调用) |
-| 配置来源或热加载 | [配置](technology-stack.md#配置) |
-| 组件启动、关闭或资源释放 | [生命周期](technology-stack.md#生命周期) |
-| MongoDB 建模或原子更新 | [MongoDB 原子性](technology-stack.md#mongodb-原子性) |
-| 数据库结构变更或迁移脚本 | [数据库变更](technology-stack.md#数据库变更) |
-| 缓存 | [缓存使用规范](technology-stack.md#缓存使用规范) |
-| 定时调度行为 | [定时任务](technology-stack.md#定时任务) |
-| 文件定位或测试放置 | [目录结构](directory-structure.md#目录结构)、[实施与验证](directory-structure.md#实施与验证) |
+| 新增业务、调整分层或依赖 | [分层与依赖](architecture.md#分层与依赖) |
+| 类型、依赖及 receiver 命名 | [各层命名规范](architecture.md#各层命名规范) |
+| 输入、结果、数据库对象及跨层复用 | [对象与复用](architecture.md#对象与复用) |
+| HTTP、消息或定时任务入口 | [HTTP、MQ 与定时任务](architecture.md#httpmq-与定时任务) |
+| 原子操作、事务或并发更新 | [事务职责](architecture.md#事务职责) |
+| 技术选型、依赖或版本 | [组件选型](conventions.md#组件选型)、[版本约定](conventions.md#版本约定) |
+| 业务错误及 HTTP 响应 | [错误处理约定](conventions.md#错误处理约定) |
+| 列表与分页 | [公共分页](conventions.md#公共分页) |
+| 外部 HTTP 调用 | [外部 HTTP 调用](conventions.md#外部-http-调用) |
+| 配置来源或热加载 | [配置](conventions.md#配置) |
+| 组件启动、关闭或资源释放 | [生命周期](conventions.md#生命周期) |
+| MongoDB 建模或原子更新 | [MongoDB 原子性](conventions.md#mongodb-原子性) |
+| 数据库结构变更或迁移脚本 | [数据库变更](conventions.md#数据库变更) |
+| 缓存 | [缓存使用规范](conventions.md#缓存使用规范) |
+| 定时调度行为 | [定时任务](conventions.md#定时任务) |
+| 文件定位或测试放置 | [目录结构](architecture.md#目录结构)、[实施与验证](architecture.md#实施与验证) |
 
 根 README 面向开发者，维护项目概览、启动和验证命令，执行相关操作时再查阅。组件 README 不纳入常规阅读路径，仅在具体任务需要组件细节时查阅；结论结合相关代码和测试核实。
 
 ## 实施约束
 
-- 设计、诊断进入开发前，先获得用户对具体方案的明确确认；修改前检查工作区并保留已有改动。
 - Controller、Job 调用 Service；Service 依赖 Repo 接口，不编写事务。完整原子操作及事务由 Repo 封装。
 - 对象与错误放置遵循目录职责；不要为跨层传递增加仅逐字段复制的对象。
-- 业务组件及依赖使用职责后缀，具体遵循各层命名规范。
-- 方法接收者（receiver）不受职责后缀规则约束，使用简短单词或字母，同一类型保持一致。
+- 业务组件及依赖使用职责后缀；receiver 使用简短名称，同一类型保持一致，具体遵循各层命名规范。
 - 保留有用的组件文档与基础回归测试。修改行为时同步相关说明，根 README 只维护概览和导航。
-- 模板组件按实际需求裁剪，不预设认证方案，不把业务项目特例推广为模板默认规则；按需创建目录，不添加占位能力，不擅自新增生产依赖、认证能力或扩大修改范围。
-- 不手工修改 `internal/app/wire_gen.go`；Wire 声明变化后运行 README 中的固定版本生成命令并检查差异。
+- 模板组件按实际需求裁剪，不预设认证方案，不把业务项目特例推广为模板默认规则；按需创建目录，不添加占位能力，不擅自新增认证能力。
+- 不手工修改 `internal/app/wire_gen.go`；Wire 声明变化后运行 README 中的 `make wire`，使用最新版 Wire（`@latest`）生成并检查差异。
 
 ## 验证
 
-修改 Go 文件后运行 gofmt，先测试受影响包，再按范围执行 README 中的测试、vet 和构建命令。检查命令是否影响外部状态；真实服务测试只连接隔离环境，明确报告跳过与未验证项。仅修改文档时检查链接和规范一致性，无需运行业务测试。
-
-不得伪造验证结果，不留下无人负责、无处理时间的 TODO，不提交真实凭据。未经用户明确允许，不执行改变 Git 状态的操作。
+按改动范围使用 README 中的测试、vet 和构建命令；真实服务测试的环境变量及隔离要求见 README。仅修改文档时检查链接和规范一致性，无需运行业务测试。
 
 ## 文档维护
 
-文档记录公共规则、业务需求及必要的组件使用说明，实现细节以代码为准。发现文档与代码不一致时，说明差异及影响，不自行改变需求或扩大修改范围。
+文档记录已确定的项目规则、业务需求及必要的组件使用说明，实现细节以代码为准。发现文档与代码不一致时，说明差异及影响，不自行改变需求或扩大修改范围。

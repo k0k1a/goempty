@@ -46,7 +46,7 @@ internal/repo/db/hello.go 不使用数据库，不能通过目录推断 MySQL �
 - 默认应用名在 pkg/env 等实际定义处核实；检查入口、配置加载、三个环境配置、README 启动说明、文档标题。cmd/app、internal/app 是职责名，无需随应用名重命名。
 - module 可带路径，不能用作配置文件名前缀；应用名和 module 分开替换。
 - 连接样例保留安全占位值，不复制本机真实密码或生产端点；不能判断时澄清。
-- Wire 当前命令：`go run github.com/google/wire/cmd/wire@v0.7.0 ./internal/app`。以执行时源 README 的固定版本为准。
+- Wire 生成命令遵循目标项目 README，模板当前入口为 `make wire`。
 - Swagger 当前命令：`go run ./scripts/generate-api-docs`。核实 scripts/generate-api-docs/main.go 的扫描目录，删除整个扫描目录时同步调整参数；产物不应留下 /hello。
 - 检查 AGENTS.md 导航、目录规范和技术栈表，区分未来开发规范与宣称已存在的能力；删失效引用，不扩大到重写全部文档。
 
