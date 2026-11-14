@@ -14,6 +14,7 @@
 | HTTP、消息或定时任务入口 | [HTTP、MQ 与定时任务](architecture.md#httpmq-与定时任务) |
 | 原子操作、事务或并发更新 | [事务职责](architecture.md#事务职责) |
 | 技术选型、依赖或版本 | [组件选型](conventions.md#组件选型)、[版本约定](conventions.md#版本约定) |
+| 类型转换或集合操作 | [组件选型](conventions.md#组件选型) |
 | 业务错误及 HTTP 响应 | [错误处理约定](conventions.md#错误处理约定) |
 | 列表与分页 | [公共分页](conventions.md#公共分页) |
 | 外部 HTTP 调用 | [外部 HTTP 调用](conventions.md#外部-http-调用) |

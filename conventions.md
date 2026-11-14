@@ -14,6 +14,8 @@
 | Redis 客户端 | go-redis | Redis 连接与数据操作 |
 | MongoDB 客户端 | MongoDB 官方 Go Driver v2 | `pkg/mongodb` 提供连接封装，由 App 管理共享客户端，见[使用说明](pkg/mongodb/README.md) |
 | 配置管理 | Viper | `config` 包加载 YAML 并监听文件变化；`APP_NAME`、`ENV` 选择文件，入口独立读取 `PORT`，连接参数不提供环境变量覆盖，见 [配置说明](config/README.md) |
+| 类型转换 | [cast](https://github.com/spf13/cast) | 类型转换优先使用 `github.com/spf13/cast` |
+| 集合操作 | [lo](https://github.com/samber/lo) | 集合操作优先使用 `github.com/samber/lo` |
 | 日志 | Zap + Lumberjack | `pkg/log` 默认输出 JSON 到 stdout；独立实例支持文件输出与按大小轮转，完整配置由调用方传入，见 [使用说明](pkg/log/README.md) |
 | 错误处理 | 自定义错误 | 承载业务错误码、错误消息等信息，供接口层统一解析 |
 | 依赖注入 | Wire | 编译期依赖注入与依赖组装 |
