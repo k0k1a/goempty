@@ -19,7 +19,7 @@ import (
 func TestHTTPAccessAndPanicLogs(t *testing.T) {
 	if os.Getenv("GOEMPTY_HTTP_LOG_TEST") == "1" {
 		handler := newHTTPHandler(&httpDependencies{
-			Hello: service.NewHelloService(helloRepoStub{message: "hello"}),
+			HelloService: service.NewHelloService(helloRepoStub{message: "hello"}),
 		})
 		handler.GET("/users/:id", func(c *gin.Context) { c.Status(http.StatusOK) })
 		handler.GET("/panic", loggingPanicHandler)

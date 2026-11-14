@@ -14,7 +14,7 @@ import (
 
 // httpDependencies contains the services used to assemble HTTP controllers.
 type httpDependencies struct {
-	Hello *service.HelloService
+	HelloService *service.HelloService
 }
 
 // newHTTPServer assembles the HTTP transport with the application's Gin handler.
@@ -39,8 +39,8 @@ func newHTTPHandler(deps *httpDependencies) *gin.Engine {
 	engine.GET("/healthz", healthz)
 	engine.GET("/readyz", readyz)
 
-	hello := controller.NewHelloController(deps.Hello)
-	engine.GET("/hello", hello.Hello)
+	helloController := controller.NewHelloController(deps.HelloService)
+	engine.GET("/hello", helloController.Hello)
 	return engine
 }
 

@@ -334,7 +334,7 @@ func TestRunShutdown(t *testing.T) {
 // HTTP lifecycle tests assemble transport dependencies without external services.
 func newHTTPTestApp(cfg config.Config) (*App, error) {
 	server, err := newHTTPServer(cfg.HTTP, &httpDependencies{
-		Hello: service.NewHelloService(db.NewHelloRepo()),
+		HelloService: service.NewHelloService(db.NewHelloRepo()),
 	})
 	if err != nil {
 		return nil, err

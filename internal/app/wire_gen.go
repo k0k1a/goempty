@@ -22,7 +22,7 @@ func initialize(ctx context.Context, cfg config.Config) (*App, func(), error) {
 	helloRepo := db.NewHelloRepo()
 	helloService := service.NewHelloService(helloRepo)
 	appHttpDependencies := &httpDependencies{
-		Hello: helloService,
+		HelloService: helloService,
 	}
 	server, err := newHTTPServer(httpserverConfig, appHttpDependencies)
 	if err != nil {

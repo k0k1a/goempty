@@ -10,7 +10,7 @@ import (
 
 func TestHTTPHealthEndpoints(t *testing.T) {
 	handler := newHTTPHandler(&httpDependencies{
-		Hello: service.NewHelloService(helloRepoStub{message: "hello"}),
+		HelloService: service.NewHelloService(helloRepoStub{message: "hello"}),
 	})
 	for _, path := range []string{"/healthz", "/readyz"} {
 		t.Run(path, func(t *testing.T) {

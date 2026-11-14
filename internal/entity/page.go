@@ -22,7 +22,7 @@ func (p *Page) Normalize() {
 }
 
 // Validate rejects invalid ranges and an offset that would overflow int.
-func (p Page) Validate() error {
+func (p *Page) Validate() error {
 	maxInt := int(^uint(0) >> 1)
 	if p.Page < 1 || p.PageSize < 1 || p.PageSize > MaxPageSize || p.Page-1 > maxInt/p.PageSize {
 		return ErrInvalidArgument
@@ -31,8 +31,8 @@ func (p Page) Validate() error {
 }
 
 // Offset requires normalized, validated pagination.
-func (p Page) Offset() int { return (p.Page - 1) * p.PageSize }
-func (p Page) Limit() int  { return p.PageSize }
+func (p *Page) Offset() int { return (p.Page - 1) * p.PageSize }
+func (p *Page) Limit() int  { return p.PageSize }
 
 // PageList contains the filtered total before pagination. Use a non-nil List for [].
 type PageList[T any] struct {

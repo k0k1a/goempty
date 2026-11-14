@@ -13,7 +13,7 @@ import (
 
 func TestHTTPCORS(t *testing.T) {
 	handler := newHTTPHandler(&httpDependencies{
-		Hello: service.NewHelloService(helloRepoStub{message: "hello"}),
+		HelloService: service.NewHelloService(helloRepoStub{message: "hello"}),
 	})
 	handler.GET("/cors-panic", func(c *gin.Context) { panic("test CORS recovery") })
 	for _, tc := range []struct {
@@ -61,7 +61,7 @@ func TestHTTPCORS(t *testing.T) {
 
 func TestHTTPCORSPreflight(t *testing.T) {
 	handler := newHTTPHandler(&httpDependencies{
-		Hello: service.NewHelloService(helloRepoStub{message: "hello"}),
+		HelloService: service.NewHelloService(helloRepoStub{message: "hello"}),
 	})
 	request := httptest.NewRequest(http.MethodOptions, "/hello", nil)
 	request.Header.Set("Origin", "https://frontend.example")
