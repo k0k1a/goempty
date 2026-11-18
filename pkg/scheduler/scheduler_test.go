@@ -17,18 +17,20 @@ func TestConfigurationAndRegistration(t *testing.T) {
 	if s.cron.Location() != time.Local {
 		t.Fatal("empty timezone must follow time.Local")
 	}
-	valid := Task{Name: "valid", Spec: "0 * * * *", Handler: func(context.Context) error { return nil }}
-	for _, task := range []Task{
-		{Name: "", Spec: valid.Spec, Handler: valid.Handler},
-		{Name: " padded ", Spec: valid.Spec, Handler: valid.Handler},
-		{Name: "nil", Spec: valid.Spec},
-		{Name: "negative", Spec: valid.Spec, Handler: valid.Handler, Timeout: -time.Second},
-		{Name: "bad-spec", Spec: "invalid", Handler: valid.Handler},
-		{Name: "six-fields", Spec: "* * * * * *", Handler: valid.Handler},
+	valid := testTask{name: "valid", spec: "0 * * * *", run: func(context.Context) error { return nil }}
+	for _, task := range []testTask{
+		{name: "", spec: valid.spec, run: valid.run},
+		{name: " padded ", spec: valid.spec, run: valid.run},
+		{name: "negative", spec: valid.spec, run: valid.run, timeout: -time.Second},
+		{name: "bad-spec", spec: "invalid", run: valid.run},
+		{name: "six-fields", spec: "* * * * * *", run: valid.run},
 	} {
 		if err := s.Register(task); err == nil {
-			t.Fatalf("invalid task %q accepted", task.Name)
+			t.Fatalf("invalid task %q accepted", task.name)
 		}
+	}
+	if err := s.Register(nil); err == nil {
+		t.Fatal("nil task accepted")
 	}
 	if err := s.Register(valid); err != nil {
 		t.Fatal(err)
@@ -43,7 +45,7 @@ func TestConfigurationAndRegistration(t *testing.T) {
 	if err := s.Start(context.Background()); err != nil {
 		t.Fatalf("repeated Start: %v", err)
 	}
-	if err := s.Register(Task{Name: "late", Spec: valid.Spec, Handler: valid.Handler}); err == nil {
+	if err := s.Register(testTask{name: "late", spec: valid.spec, run: valid.run}); err == nil {
 		t.Fatal("registration after Start accepted")
 	}
 }
@@ -95,7 +97,7 @@ func TestLifecycle(t *testing.T) {
 	if err := s.Start(context.Background()); err == nil {
 		t.Fatal("restart after Stop accepted")
 	}
-	if err := s.Register(Task{}); err == nil {
+	if err := s.Register(testTask{name: "stopped", spec: "@hourly", run: func(context.Context) error { return nil }}); err == nil {
 		t.Fatal("registration after Stop accepted")
 	}
 }
@@ -106,7 +108,7 @@ func TestConcurrentDuplicateRegistration(t *testing.T) {
 	var wg sync.WaitGroup
 	for range 10 {
 		wg.Go(func() {
-			if err := s.Register(Task{Name: "same", Spec: "@hourly", Handler: func(context.Context) error { return nil }}); err == nil {
+			if err := s.Register(testTask{name: "same", spec: "@hourly", run: func(context.Context) error { return nil }}); err == nil {
 				accepted.Add(1)
 			}
 		})
@@ -122,7 +124,7 @@ func TestOverlapAndIndependentTasks(t *testing.T) {
 	entered, release, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	defer close(release)
 	var calls atomic.Int32
-	registerTestTask(t, s, Task{Name: "blocking", Handler: func(context.Context) error {
+	registerTestTask(t, s, testTask{name: "blocking", run: func(context.Context) error {
 		if calls.Add(1) == 1 {
 			close(entered)
 			<-release
@@ -130,7 +132,7 @@ func TestOverlapAndIndependentTasks(t *testing.T) {
 		return nil
 	}})
 	var otherCalls atomic.Int32
-	registerTestTask(t, s, Task{Name: "other", Handler: func(context.Context) error {
+	registerTestTask(t, s, testTask{name: "other", run: func(context.Context) error {
 		otherCalls.Add(1)
 		return nil
 	}})
@@ -154,7 +156,7 @@ func TestOverlapAndIndependentTasks(t *testing.T) {
 func TestPanicAndErrorDoNotDisableTask(t *testing.T) {
 	s := newTestScheduler(t)
 	calls := 0
-	registerTestTask(t, s, Task{Name: "recover", Handler: func(context.Context) error {
+	registerTestTask(t, s, testTask{name: "recover", run: func(context.Context) error {
 		calls++
 		if calls == 1 {
 			panic("test panic")
@@ -171,19 +173,40 @@ func TestPanicAndErrorDoNotDisableTask(t *testing.T) {
 	}
 }
 
+type testTask struct {
+	name, spec string
+	timeout    time.Duration
+	run        func(context.Context) error
+}
+
+func (t testTask) Name() string                  { return t.name }
+func (t testTask) Spec() string                  { return t.spec }
+func (t testTask) Timeout() time.Duration        { return t.timeout }
+func (t testTask) Run(ctx context.Context) error { return t.run(ctx) }
+
 func TestTaskTimeoutAndContextValues(t *testing.T) {
 	s := newTestScheduler(t)
 	type key struct{}
 	var taskErr error
-	registerTestTask(t, s, Task{Name: "timeout", Timeout: 10 * time.Millisecond, Handler: func(ctx context.Context) error {
+	task := testTask{name: "timeout", spec: "@hourly", timeout: 10 * time.Millisecond, run: func(ctx context.Context) error {
 		if ctx.Value(key{}) != "preserved" {
 			t.Error("parent context value lost")
+		}
+		deadline, ok := ctx.Deadline()
+		if !ok || time.Until(deadline) > 10*time.Millisecond {
+			t.Fatal("registered task timeout was not used")
 		}
 		<-ctx.Done()
 		taskErr = ctx.Err()
 		return taskErr
-	}})
-	startTestScheduler(t, s, context.WithValue(context.Background(), key{}, "preserved"))
+	}}
+	if err := s.Register(&task); err != nil {
+		t.Fatal(err)
+	}
+	task.timeout = 0
+	parent, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	startTestScheduler(t, s, context.WithValue(parent, key{}, "preserved"))
 	s.cron.Entries()[0].Job.Run()
 	if !errors.Is(taskErr, context.DeadlineExceeded) {
 		t.Fatalf("task error = %v", taskErr)
@@ -195,7 +218,7 @@ func TestStopCancelsAndWaitsForRunningTask(t *testing.T) {
 	s := newTestScheduler(t)
 	entered, canceled, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	defer close(release)
-	if err := s.Register(Task{Name: "shutdown", Spec: "@every 1s", Handler: func(ctx context.Context) error {
+	if err := s.Register(testTask{name: "shutdown", spec: "@every 1s", run: func(ctx context.Context) error {
 		close(entered)
 		<-ctx.Done()
 		close(canceled)
@@ -225,7 +248,7 @@ func TestRealSchedulingAndParentCancellation(t *testing.T) {
 	finished := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	if err := s.Register(Task{Name: "scheduled", Spec: "@every 1s", Handler: func(ctx context.Context) error {
+	if err := s.Register(testTask{name: "scheduled", spec: "@every 1s", run: func(ctx context.Context) error {
 		cancel()
 		<-ctx.Done()
 		close(finished)
@@ -248,9 +271,9 @@ func newTestScheduler(t *testing.T) *Scheduler {
 	return s
 }
 
-func registerTestTask(t *testing.T, s *Scheduler, task Task) {
+func registerTestTask(t *testing.T, s *Scheduler, task testTask) {
 	t.Helper()
-	task.Spec = "@every 1h"
+	task.spec = "@every 1h"
 	if err := s.Register(task); err != nil {
 		t.Fatal(err)
 	}

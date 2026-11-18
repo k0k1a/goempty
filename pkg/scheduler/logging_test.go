@@ -100,7 +100,7 @@ func TestTaskLoggingProcess(t *testing.T) {
 	switch mode {
 	case "runs":
 		for _, result := range []string{"success", "error", "panic"} {
-			s.execute(Task{Name: "same-task", Handler: func(ctx context.Context) error {
+			s.execute("same-task", 0, func(ctx context.Context) error {
 				log.Info(ctx, "business log")
 				if result == "panic" {
 					panic("test panic")
@@ -109,16 +109,16 @@ func TestTaskLoggingProcess(t *testing.T) {
 					return errors.New("test failure")
 				}
 				return nil
-			}})
+			})
 		}
 		var wg sync.WaitGroup
 		for _, name := range []string{"first", "second"} {
 			wg.Go(func() {
 				for range 5 {
-					s.execute(Task{Name: name, Handler: func(ctx context.Context) error {
+					s.execute(name, 0, func(ctx context.Context) error {
 						log.Info(ctx, "business log")
 						return nil
-					}})
+					})
 				}
 			})
 		}
@@ -127,10 +127,10 @@ func TestTaskLoggingProcess(t *testing.T) {
 		// Isolated subprocess: never change the UUID source in the main test process.
 		uuid.SetRand(failedRandomReader{})
 		defer uuid.SetRand(nil)
-		s.execute(Task{Name: "failure", Handler: func(context.Context) error {
+		s.execute("failure", 0, func(context.Context) error {
 			t.Fatal("handler called without a trace ID")
 			return nil
-		}})
+		})
 	default:
 		t.Fatalf("unknown mode %q", mode)
 	}

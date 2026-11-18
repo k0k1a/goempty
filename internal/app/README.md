@@ -6,14 +6,16 @@ Panic 错误日志额外包含 `stack`，保留原始 panic 调用位置；响�
 
 Wire 生成依赖组装代码，`App` 管理运行组件的生命周期。当前接入 MySQL、Redis、MongoDB、Gin、HTTP Server、定时调度器、异步任务池、事件分发和 Hello Controller → Service → Repo 示例。
 
-- `wire.go`：维护 Wire provider 和私有 injector `initialize(ctx, cfg)`，返回 `(*App, cleanup, error)`，创建 `HelloRepo`，将它绑定到 `db.HelloRepository` 接口，再创建 `HelloService`、`httpDependencies`、HTTP Server、定时调度器、MySQL 连接、Redis 和 MongoDB 客户端及 App，此时尚未监听 HTTP 或启动调度。不再维护单独的 `app.Config`。
-- `providers.go`：公开的 `Initialize(ctx, cfg)` 返回 `(*App, error)`，调用私有 `initialize` 并将清理函数交给 App。集中定义 `newDatabase`、`newRedis`、`newMongoDB` 和 `newApp`，分别复用对应 pkg 包创建共享连接并提供清理函数；Redis 和 MongoDB 初始化会执行 Ping。`newApp` 调用 `New` 校验运行参数，再把连接保存到 App，使 Wire 能识别这些依赖并生成初始化和清理代码。后续业务消费者通过构造函数接收连接，不通过全局变量访问。
-- `wire_gen.go`：生成文件，不手工修改；普通构建不需要执行 Wire。
-- `app.go`：`App.Run(ctx)` 启动异步任务池、冻结事件注册，启动定时调度器并运行 HTTP 服务；取消、HTTP 退出、部分启动失败或提前取消时都调用公开的 `Shutdown(ctx)`。Shutdown 并行停止 HTTP、调度器和任务池并等待，然后执行 Wire cleanup；通过 `sync.Once` 保证完整关闭只执行一次并保存关闭结果。HTTP 超时强制关闭连接；任务超时返回错误，不能强制终止不响应 context 的 Handler。组件启动与关闭通过生命周期锁协调，已关闭的 App 不能再次运行。
-- `http.go`：`newHTTPHandler(deps)` 手写创建 Gin Engine 和 Controller，按上述顺序装配中间件并集中注册路由；`newHTTPServer(cfg, deps)` 将 Gin Engine 交给 `pkg/httpserver`。Controller 只处理请求，不负责注册路由，也不由 Wire 创建。RequestID、AccessLog 和 Recovery 实现在 `internal/controller/middleware/middleware.go`，直接依赖公共 response 和日志，不反向依赖 controller 包。
-- `App` 不作为 service/controller 注册表。后续通过构造函数把 service 注入 controller、consumer、job，再将需要启停的组件注入 App。
+| 文件 | 装配职责 |
+| --- | --- |
+| `wire.go` | 声明构造函数、接口绑定及各入口所需的依赖，通过私有 `initialize(ctx, cfg)` 生成依赖装配和失败清理。 |
+| `providers.go` | `Initialize` 调用生成代码并将清理函数交给 App。连接 provider 创建 MySQL、Redis 和 MongoDB 客户端并返回清理函数，Redis、MongoDB 初始化包含 Ping。 |
+| `http.go` | 接收 HTTP 所需的 Service，构造 Gin Engine 和 Controller，注册中间件及路由。 |
+| `jobs.go` | 接收 Job 所需的 Service，创建调度器并注册任务。 |
+| `events.go` | 接收事件处理所需的 Service，构造 Event Controller 和订阅。`newApp` 在初始化期间调用注册函数。 |
+| `app.go` | `Run` 管理启动后到退出前的运行过程。`Shutdown` 关闭组件并执行 Wire cleanup。 |
 
-应用层私有的 `httpDependencies` 对象由 Wire 填充 Service；手写创建 Controller 时只传入它需要的 Service，不传入整个依赖对象。当前只包含 `HelloService`。
+上述入口各自通过构造函数接收实际依赖。App 保存运行组件和共享连接，业务对象从构造参数获得所需能力。`wire_gen.go` 由 `make wire` 生成，普通构建直接使用该文件。
 
 Hello 示例调用链为 `GET /hello → HelloController.Hello → HelloService.Hello → HelloRepo.Hello`。仓储接口 `db.HelloRepository` 与具体实现 `HelloRepo` 均定义在 `internal/repo/db/hello.go`，直接返回 `hello`，不访问外部存储。Service 导入 Repo 包并依赖接口，Repo 不反向导入 Service。
 
@@ -82,16 +84,22 @@ Wire 官方仓库已归档，生成工具固定使用 v0.7.0：https://github.co
 
 ## 定时任务接入
 
-`internal/job/register.go` 的 `NewScheduler` 由 Wire 调用，注入 HelloService，使用零配置跟随 `time.Local`；默认注册 Hello Job，每分钟整点调用 HelloService 并记录日志，任务超时 5 秒，不写业务数据。Handler 在 `internal/job/hello.go`，业务仍由 Service 提供。新增任务时注入所需 Service，在 `registrations` 中添加任务，然后重新生成 Wire。注册失败会让应用初始化失败。
+任务在 `internal/job` 实现 `scheduler.Task`，在 [jobs.go](jobs.go) 构造并注册。新增 Service 依赖时更新 Wire 声明并运行 `make wire`。注册失败会使应用初始化失败。
 
-`cmd/app` 入口在加载配置、启动文件监听和组装应用前，将 `time.Local` 统一设为 `Asia/Shanghai`。此后 `time.Now()`、当前 Zap 时间日志、默认调度器和 MySQL DSN 的 `loc=Local` 使用这一进程本地时区。只在启动阶段设置，不在运行中修改；直接调用 `app.Initialize` 的其他入口需自行初始化时区。该设置不会改变 MySQL 服务端或会话时区，也不会覆盖显式使用 UTC 或其他时区的时间操作。
-
-直接组装 App 时使用 `New(server, jobs, taskPool, eventBus, shutdownTimeout)`，调度器、任务池和事件总线不可为 nil，eventBus 必须使用同一个 taskPool。App 负责 Start/Stop，调用方可通过取消 Run 的 Context 或调用 Shutdown 退出，不需要单独停止调度器；启动后的调用方仍需等待 Run 返回再退出进程。任务应响应取消；关闭超时后 App 仍会清理依赖，因此不响应取消的任务可能访问已关闭的连接池，必须在业务代码中避免。
-
-调度器采用标准五字段表达式，支持 `@every`；同一任务重叠执行时跳过，不同任务可并行。错误和 panic 统一记录日志，不自动重试。注册仅限启动前，停止后不能重启，不提供分布式唯一执行保证。用法及边界见 [定时任务](../../pkg/scheduler/README.md)。时区和任务定义由代码管理，配置热加载不会改变已注册任务。
+模板调度器使用零配置，采用构造时的 `time.Local`。`cmd/app` 在加载配置、启动文件监听和组装应用前将本地时区设为 `Asia/Shanghai`。进程时间、Zap 日志时间和 MySQL DSN 的 `loc=Local` 也使用该设置。直接调用 `app.Initialize` 的其他入口应按需要设置进程时区。数据库服务端和会话时区由各自环境决定。 [表达式和运行行为](../../pkg/scheduler/README.md)
 
 ## 异步任务与事件
 
-Wire 创建共享 `async.Pool` 和 `event.Bus`。Pool 的构造只校验配置，App.Run 才启动实际池；业务通过构造函数接收 Pool 或 Bus。业务 Payload 类型放在 `internal/entity`，通用 `Event` 外壳和分发逻辑留在 `pkg/event`，基础包不导入 internal。接入业务时，在 `newApp` 中接收需要的 Service 并注册处理器，注册失败返回错误；不在 Bus 构造函数中依赖 Service，以免发布者和 Bus 形成循环依赖。重新运行 `make wire`，不要手改生成文件。默认不注册业务事件、不发布示例事件。
+Wire 创建共享任务池和 Bus，并将 Bus 绑定到 `HelloEventPublisher`。在 [events.go](events.go) 添加订阅时，构造只接收所需 Service 的处理器，并将事件名与处理器显式绑定。订阅必须在 Bus 启动前完成。
 
-App 退出时并行关闭 HTTP、调度器和任务池；池停止接收任务，唤醒阻塞提交者，取消并等待已接收任务，再清理数据库连接。Worker 全忙时阻塞等待，等待人数达到配置上限后才拒绝，提交错误由调用方处理。一个事件占一个 Worker，多个处理器顺序执行，错误与 panic 隔离。详见[任务池](../../pkg/async/README.md)和[事件分发](../../pkg/event/README.md)。
+### Hello 示例
+
+1. [HelloJob](../job/hello.go) 在每分钟整点调用 `HelloService.PublishGreeting`。Service 读取固定问候语并发布 [HelloGreetingEvent](../entity/hello_event.go)。
+2. [HelloEventController](../event/hello.go) 校验事件，调用 Service 输出 `Hello task greeting`。调度、分发和处理日志可以用同一个 `trace_id` 关联。
+3. Job 为本次调用设置 5 秒的上下文超时。Worker 开始处理事件后使用任务池自己的执行超时。`Publish` 的返回值只反映任务是否被接收，若 Worker 已满，等待期间 Job 的超时也无法中断这次提交。 [任务池](../../pkg/async/README.md) · [事件总线](../../pkg/event/README.md)
+
+### 启动与关闭
+
+`App.Run` 依次启动任务池、启用 Bus、启动调度器和 HTTP 服务。直接调用 `New(server, jobs, taskPool, eventBus, shutdownTimeout)` 时，调用方负责预先注册任务和订阅，并确保 Bus 使用传给 App 的同一个任务池。
+
+取消运行 Context、HTTP 退出或部分启动失败都会进入 `Shutdown`。App 并行停止 HTTP、调度器和任务池，等待关闭调用返回后再清理共享连接。池停止时会唤醒阻塞的提交者，取消在途任务并限时等待退出。关闭结果由首次 `Shutdown` 保存，并发或后续调用共用该结果。调用方应等待 `Run` 返回再结束进程。

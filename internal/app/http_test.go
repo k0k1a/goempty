@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"goempty/internal/repo/db"
-	"goempty/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,7 +22,7 @@ func (r helloRepoStub) Hello() string {
 func TestHTTPHelloRoute(t *testing.T) {
 	// A distinct greeting verifies that the response comes through the injected repository.
 	handler := newHTTPHandler(&httpDependencies{
-		HelloService: service.NewHelloService(helloRepoStub{message: "from repository"}),
+		HelloService: newTestHelloService(helloRepoStub{message: "from repository"}),
 	})
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/hello", nil))
@@ -64,7 +63,7 @@ func TestHTTPHelloRoute(t *testing.T) {
 
 func TestHTTPFrameworkErrors(t *testing.T) {
 	handler := newHTTPHandler(&httpDependencies{
-		HelloService: service.NewHelloService(helloRepoStub{message: "hello"}),
+		HelloService: newTestHelloService(helloRepoStub{message: "hello"}),
 	})
 	handler.GET("/panic", func(c *gin.Context) { panic("private panic detail") })
 	handler.GET("/written-panic", func(c *gin.Context) {
@@ -112,7 +111,7 @@ func TestHTTPFrameworkErrors(t *testing.T) {
 
 func TestHTTPRecovery(t *testing.T) {
 	handler := newHTTPHandler(&httpDependencies{
-		HelloService: service.NewHelloService(db.NewHelloRepo()),
+		HelloService: newTestHelloService(db.NewHelloRepo()),
 	})
 	handler.GET("/panic", func(c *gin.Context) {
 		panic("test recovery")
@@ -134,7 +133,7 @@ func TestHTTPRecovery(t *testing.T) {
 
 func TestHTTPRequestID(t *testing.T) {
 	handler := newHTTPHandler(&httpDependencies{
-		HelloService: service.NewHelloService(helloRepoStub{message: "hello"}),
+		HelloService: newTestHelloService(helloRepoStub{message: "hello"}),
 	})
 	handler.GET("/panic-id", func(c *gin.Context) { panic("test request ID") })
 	for _, tc := range []struct {

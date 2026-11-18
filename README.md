@@ -19,7 +19,9 @@ make build
 ./dist/app
 ```
 
-`GET /hello` 返回统一 JSON 响应；`GET /healthz` 和 `/readyz` 返回 200 空响应，目前不探测 MySQL、Redis 或 MongoDB。Hello Job 每分钟整点调用 HelloService 并记录问候日志；不会写业务数据，多实例各自执行。外部 HTTP 客户端仅为独立示例，默认不装配、不访问外部服务。
+`GET /hello` 返回包含固定问候语的 JSON。`GET /healthz` 和 `GET /readyz` 返回 200 空响应，当前只反映 HTTP 服务可响应。
+
+保留定时任务时，每个实例会在每分钟整点尝试发布问候事件。订阅者完成处理后可在服务日志中看到 `Hello task greeting`。HTTP 和定时事件示例共用同一份固定问候语。另有一个独立的外部 HTTP 客户端示例，可按需使用。
 
 配置文件支持监听重载，但已有 MySQL、Redis、MongoDB 连接池不会重建；连接参数以及入口设置的 HTTP、关闭参数变更需重启。完整边界见 [配置说明](config/README.md)。
 

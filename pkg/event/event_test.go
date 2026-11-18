@@ -10,6 +10,21 @@ import (
 	"goempty/pkg/async"
 )
 
+type testEvent struct {
+	name   string
+	userID int64
+}
+
+func (e testEvent) Name() string { return e.name }
+
+type testHandler struct {
+	name   string
+	handle func(context.Context, Event) error
+}
+
+func (h testHandler) Name() string                              { return h.name }
+func (h testHandler) Handle(ctx context.Context, e Event) error { return h.handle(ctx, e) }
+
 func newTestBus(t *testing.T) (*Bus, *async.Pool) {
 	t.Helper()
 	p, err := async.New(async.Config{Concurrency: 1})
@@ -38,8 +53,8 @@ func TestMultipleHandlersRunInOrderAndIsolateFailures(t *testing.T) {
 	var order []string
 	done := make(chan struct{})
 	for _, name := range []string{"first", "error", "panic", "last"} {
-		if err := b.Register("user.registered", name, func(ctx context.Context, e Event) error {
-			if e.Payload != int64(42) || e.Name != "user.registered" {
+		if err := b.Subscribe("user.registered", testHandler{name: name, handle: func(ctx context.Context, e Event) error {
+			if registered, ok := e.(testEvent); !ok || registered.userID != 42 || registered.name != "user.registered" {
 				t.Errorf("event = %+v", e)
 			}
 			order = append(order, name)
@@ -52,12 +67,12 @@ func TestMultipleHandlersRunInOrderAndIsolateFailures(t *testing.T) {
 				close(done)
 			}
 			return nil
-		}); err != nil {
+		}}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	b.Start()
-	if err := b.Publish(context.Background(), Event{Name: "user.registered", Payload: int64(42)}); err != nil {
+	if err := b.Publish(context.Background(), testEvent{name: "user.registered", userID: 42}); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -75,32 +90,32 @@ func TestEventAdmissionAndRegistration(t *testing.T) {
 		t.Fatal("nil pool accepted")
 	}
 	b, p := newTestBus(t)
-	if err := b.Publish(context.Background(), Event{Name: "test"}); !errors.Is(err, ErrNotStarted) {
+	if err := b.Publish(context.Background(), testEvent{name: "test"}); !errors.Is(err, ErrNotStarted) {
 		t.Fatal(err)
 	}
 	release, entered := make(chan struct{}), make(chan struct{})
 	defer close(release)
 	handler := func(context.Context, Event) error { close(entered); <-release; return nil }
-	if err := b.Register("test", "hold", handler); err != nil {
+	if err := b.Subscribe("test", testHandler{name: "hold", handle: handler}); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.Register("test", "hold", handler); !errors.Is(err, ErrDuplicateHandler) {
+	if err := b.Subscribe("test", testHandler{name: "hold", handle: handler}); !errors.Is(err, ErrDuplicateHandler) {
 		t.Fatal(err)
 	}
-	if err := b.Register("", "empty", handler); err == nil {
+	if err := b.Subscribe("", testHandler{name: "empty", handle: handler}); err == nil {
 		t.Fatal("empty event name accepted")
 	}
-	if err := b.Register("test", "nil", nil); err == nil {
+	if err := b.Subscribe("test", nil); err == nil {
 		t.Fatal("nil handler accepted")
 	}
 	b.Start()
-	if err := b.Register("test", "late", handler); !errors.Is(err, ErrRegistrationClosed) {
+	if err := b.Subscribe("test", testHandler{name: "late", handle: handler}); !errors.Is(err, ErrRegistrationClosed) {
 		t.Fatal(err)
 	}
-	if err := b.Publish(context.Background(), Event{Name: "missing"}); !errors.Is(err, ErrNoHandlers) {
+	if err := b.Publish(context.Background(), testEvent{name: "missing"}); !errors.Is(err, ErrNoHandlers) {
 		t.Fatal(err)
 	}
-	if err := b.Publish(context.Background(), Event{Name: "test"}); err != nil {
+	if err := b.Publish(context.Background(), testEvent{name: "test"}); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -112,7 +127,7 @@ func TestEventAdmissionAndRegistration(t *testing.T) {
 	if err := p.Stop(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.Publish(context.Background(), Event{Name: "test"}); !errors.Is(err, async.ErrClosed) {
+	if err := b.Publish(context.Background(), testEvent{name: "test"}); !errors.Is(err, async.ErrClosed) {
 		t.Fatal(err)
 	}
 }

@@ -5,41 +5,51 @@ import (
 	"errors"
 	"testing"
 
+	"goempty/internal/entity"
 	"goempty/internal/service"
+	"goempty/pkg/event"
 )
 
 type helloRepo struct{ calls int }
 
-func (r *helloRepo) Hello() string { r.calls++; return "job greeting" }
+func (r *helloRepo) Hello() string {
+	r.calls++
+	return "job greeting"
+}
 
-func TestHelloTask(t *testing.T) {
+type greetingPublisher struct {
+	events []event.Event
+	err    error
+}
+
+func (p *greetingPublisher) Publish(_ context.Context, e event.Event) error {
+	p.events = append(p.events, e)
+	return p.err
+}
+
+func TestHelloJobPublishesGreeting(t *testing.T) {
 	repo := &helloRepo{}
-	hello := service.NewHelloService(repo)
-	jobs, err := NewScheduler(hello)
-	if err != nil {
+	publisher := &greetingPublisher{}
+	job := NewHelloJob(service.NewHelloService(repo, publisher))
+	if err := job.Run(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		if err := jobs.Stop(context.Background()); err != nil {
-			t.Error(err)
-		}
-	})
-	if err := jobs.Register(helloTask(hello)); err == nil {
-		t.Fatal("hello task was not registered")
+	want := entity.HelloGreetingEvent{Message: "job greeting"}
+	if repo.calls != 1 || len(publisher.events) != 1 || publisher.events[0] != want {
+		t.Fatalf("service calls = %d, events = %#v", repo.calls, publisher.events)
 	}
-	task := helloTask(hello)
-	if err := task.Handler(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if repo.calls != 1 {
-		t.Fatalf("service calls = %d", repo.calls)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
+
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if err := task.Handler(ctx); !errors.Is(err, context.Canceled) {
-		t.Fatalf("canceled handler = %v", err)
+	if err := job.Run(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled job = %v", err)
 	}
-	if repo.calls != 1 {
-		t.Fatal("canceled task called service")
+	if repo.calls != 1 || len(publisher.events) != 1 {
+		t.Fatal("canceled job read or published a greeting")
+	}
+
+	publisher.err = errors.New("event submission failed")
+	if err := job.Run(t.Context()); !errors.Is(err, publisher.err) {
+		t.Fatalf("job error = %v, want %v", err, publisher.err)
 	}
 }

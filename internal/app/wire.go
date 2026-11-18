@@ -6,7 +6,6 @@ import (
 	"context"
 
 	"goempty/config"
-	"goempty/internal/job"
 	"goempty/internal/repo/db"
 	"goempty/internal/service"
 	"goempty/pkg/async"
@@ -26,10 +25,13 @@ func initialize(ctx context.Context, cfg config.Config) (*App, func(), error) {
 		newMongoDB,
 		db.NewHelloRepo,
 		wire.Bind(new(db.HelloRepository), new(*db.HelloRepo)),
+		wire.Bind(new(service.HelloEventPublisher), new(*event.Bus)),
 		service.NewHelloService,
 		wire.Struct(new(httpDependencies), "*"),
 		newHTTPServer,
-		job.NewScheduler,
+		wire.Struct(new(jobDependencies), "*"),
+		newScheduler,
+		wire.Struct(new(eventDependencies), "*"),
 		newApp,
 	)
 	return nil, nil, nil

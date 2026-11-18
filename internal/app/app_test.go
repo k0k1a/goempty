@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"goempty/config"
+	"goempty/internal/entity"
 	"goempty/internal/job"
 	"goempty/internal/repo/db"
 	"goempty/internal/service"
@@ -76,14 +77,13 @@ func TestRunWaitsForTasksBeforeCleanup(t *testing.T) {
 			}
 			entered, canceled, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
 			defer close(release)
-			if err := a.scheduler.Register(scheduler.Task{
-				Name: "lifecycle", Spec: "@every 1s", Handler: func(ctx context.Context) error {
-					close(entered)
-					<-ctx.Done()
-					close(canceled)
-					<-release
-					return ctx.Err()
-				},
+			if err := a.scheduler.Register(testScheduledTask{func(ctx context.Context) error {
+				close(entered)
+				<-ctx.Done()
+				close(canceled)
+				<-release
+				return ctx.Err()
+			},
 			}); err != nil {
 				t.Fatal(err)
 			}
@@ -270,7 +270,7 @@ func TestRunShutdown(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			jobs, err := job.NewScheduler(service.NewHelloService(db.NewHelloRepo()))
+			jobs, err := scheduler.New(scheduler.Config{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -356,16 +356,6 @@ func TestRunShutdown(t *testing.T) {
 
 // HTTP lifecycle tests assemble transport dependencies without external services.
 func newHTTPTestApp(cfg config.Config) (*App, error) {
-	server, err := newHTTPServer(cfg.HTTP, &httpDependencies{
-		HelloService: service.NewHelloService(db.NewHelloRepo()),
-	})
-	if err != nil {
-		return nil, err
-	}
-	jobs, err := job.NewScheduler(service.NewHelloService(db.NewHelloRepo()))
-	if err != nil {
-		return nil, err
-	}
 	tasks, err := async.New(cfg.Async)
 	if err != nil {
 		return nil, err
@@ -374,7 +364,16 @@ func newHTTPTestApp(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	return New(server, jobs, tasks, events, cfg.ShutdownTimeout)
+	helloService := service.NewHelloService(db.NewHelloRepo(), events)
+	server, err := newHTTPServer(cfg.HTTP, &httpDependencies{HelloService: helloService})
+	if err != nil {
+		return nil, err
+	}
+	jobs, err := newScheduler(&jobDependencies{HelloService: helloService})
+	if err != nil {
+		return nil, err
+	}
+	return newApp(server, jobs, tasks, events, &eventDependencies{HelloService: helloService}, cfg.ShutdownTimeout, nil, nil, nil)
 }
 
 func newTestTasks(t *testing.T, cfg async.Config) (*async.Pool, *event.Bus) {
@@ -399,15 +398,15 @@ func TestRunWaitsForEventsBeforeCleanup(t *testing.T) {
 			}
 			canceled, release, last := make(chan struct{}), make(chan struct{}), make(chan struct{})
 			defer close(release)
-			if err := a.eventBus.Register("lifecycle", "hold", func(ctx context.Context, _ event.Event) error {
+			if err := a.eventBus.Subscribe("lifecycle", testEventHandler{"hold", func(ctx context.Context, _ event.Event) error {
 				<-ctx.Done()
 				close(canceled)
 				<-release
 				return ctx.Err()
-			}); err != nil {
+			}}); err != nil {
 				t.Fatal(err)
 			}
-			if err := a.eventBus.Register("lifecycle", "last", func(context.Context, event.Event) error { close(last); return nil }); err != nil {
+			if err := a.eventBus.Subscribe("lifecycle", testEventHandler{"last", func(context.Context, event.Event) error { close(last); return nil }}); err != nil {
 				t.Fatal(err)
 			}
 			cleaned := make(chan struct{})
@@ -418,7 +417,7 @@ func TestRunWaitsForEventsBeforeCleanup(t *testing.T) {
 			go func() { done <- a.Run(ctx) }()
 			deadline := time.After(time.Second)
 			for {
-				err = a.eventBus.Publish(context.Background(), event.Event{Name: "lifecycle"})
+				err = a.eventBus.Publish(context.Background(), testEvent("lifecycle"))
 				if err == nil {
 					break
 				}
@@ -475,5 +474,93 @@ func TestRunWaitsForEventsBeforeCleanup(t *testing.T) {
 				t.Fatal("second event handler did not run")
 			}
 		})
+	}
+}
+
+type testScheduledTask struct {
+	run func(context.Context) error
+}
+
+func (testScheduledTask) Name() string           { return "lifecycle" }
+func (testScheduledTask) Spec() string           { return "@every 1s" }
+func (testScheduledTask) Timeout() time.Duration { return 0 }
+
+func (task testScheduledTask) Run(ctx context.Context) error { return task.run(ctx) }
+
+type testEvent string
+
+func (e testEvent) Name() string { return string(e) }
+
+type testEventHandler struct {
+	name   string
+	handle func(context.Context, event.Event) error
+}
+
+func (h testEventHandler) Name() string { return h.name }
+
+func (h testEventHandler) Handle(ctx context.Context, e event.Event) error {
+	return h.handle(ctx, e)
+}
+
+type unexpectedHelloPublisher struct{}
+
+func (unexpectedHelloPublisher) Publish(context.Context, event.Event) error {
+	panic("HTTP Hello must not publish events")
+}
+
+func newTestHelloService(repo db.HelloRepository) *service.HelloService {
+	return service.NewHelloService(repo, unexpectedHelloPublisher{})
+}
+
+func TestHelloJobEventFlow(t *testing.T) {
+	a, err := newHTTPTestApp(config.Config{
+		HTTP: httpserver.Config{Addr: "127.0.0.1:0"}, ShutdownTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := a.Shutdown(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+
+	helloService := service.NewHelloService(db.NewHelloRepo(), a.eventBus)
+	if err := a.scheduler.Register(job.NewHelloJob(helloService)); err == nil {
+		t.Fatal("Hello Job was not registered during assembly")
+	}
+	if err := registerEvents(a.eventBus, &eventDependencies{HelloService: helloService}); !errors.Is(err, event.ErrDuplicateHandler) {
+		t.Fatalf("Hello event controller registration = %v", err)
+	}
+
+	received := make(chan event.Event, 1)
+	if err := a.eventBus.Subscribe(entity.HelloGreetingRequested, testEventHandler{
+		name: "probe",
+		handle: func(ctx context.Context, e event.Event) error {
+			select {
+			case received <- e:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.taskPool.Start(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	a.eventBus.Start()
+	// Invoke the demo job directly so the test does not depend on a minute boundary.
+	if err := job.NewHelloJob(helloService).Run(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case e := <-received:
+		if greeting, ok := e.(entity.HelloGreetingEvent); !ok || greeting.Message != "hello" {
+			t.Fatalf("greeting event = %#v", e)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("greeting event was not dispatched")
 	}
 }

@@ -6,14 +6,12 @@ import (
 	"strings"
 	"testing"
 
-	"goempty/internal/service"
-
 	"github.com/gin-gonic/gin"
 )
 
 func TestHTTPCORS(t *testing.T) {
 	handler := newHTTPHandler(&httpDependencies{
-		HelloService: service.NewHelloService(helloRepoStub{message: "hello"}),
+		HelloService: newTestHelloService(helloRepoStub{message: "hello"}),
 	})
 	handler.GET("/cors-panic", func(c *gin.Context) { panic("test CORS recovery") })
 	for _, tc := range []struct {
@@ -61,7 +59,7 @@ func TestHTTPCORS(t *testing.T) {
 
 func TestHTTPCORSPreflight(t *testing.T) {
 	handler := newHTTPHandler(&httpDependencies{
-		HelloService: service.NewHelloService(helloRepoStub{message: "hello"}),
+		HelloService: newTestHelloService(helloRepoStub{message: "hello"}),
 	})
 	request := httptest.NewRequest(http.MethodOptions, "/hello", nil)
 	request.Header.Set("Origin", "https://frontend.example")

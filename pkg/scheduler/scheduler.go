@@ -18,16 +18,14 @@ import (
 	"go.uber.org/zap"
 )
 
-// Handler must propagate ctx to its dependencies and return when it is canceled.
-// Errors are logged once by the scheduler; tasks are not automatically retried.
-type Handler func(context.Context) error
-
 // Task defines one schedule. Timeout zero adds no execution deadline.
-type Task struct {
-	Name    string
-	Spec    string
-	Timeout time.Duration
-	Handler Handler
+// Run must propagate ctx and return when it is canceled. Errors are logged;
+// tasks are not automatically retried.
+type Task interface {
+	Name() string
+	Spec() string
+	Timeout() time.Duration
+	Run(ctx context.Context) error
 }
 
 // Scheduler is constructed with New. Register tasks before Start. A stopped
@@ -58,27 +56,32 @@ func New(cfg Config) (*Scheduler, error) {
 // Register validates a task and rejects duplicate names or registration after Start.
 // Specs use five fields (minute first), or descriptors such as @every 10m.
 func (s *Scheduler) Register(task Task) error {
+	if task == nil {
+		return errors.New("scheduler: task is required")
+	}
+	name, spec, timeout := task.Name(), task.Spec(), task.Timeout()
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.started || s.stopped {
 		return errors.New("scheduler: registration is closed")
 	}
-	if task.Name == "" || strings.TrimSpace(task.Name) != task.Name {
+	if name == "" || strings.TrimSpace(name) != name {
 		return errors.New("scheduler: task name must be nonempty without surrounding whitespace")
 	}
-	if task.Handler == nil || task.Timeout < 0 {
-		return fmt.Errorf("scheduler: task %q requires a handler and nonnegative timeout", task.Name)
+	if timeout < 0 {
+		return fmt.Errorf("scheduler: task %q requires a nonnegative timeout", name)
 	}
-	if _, exists := s.names[task.Name]; exists {
-		return fmt.Errorf("scheduler: duplicate task %q", task.Name)
+	if _, exists := s.names[name]; exists {
+		return fmt.Errorf("scheduler: duplicate task %q", name)
 	}
-	job := cron.NewChain(cron.SkipIfStillRunning(cronLogger{name: task.Name})).Then(
-		cron.FuncJob(func() { s.execute(task) }),
+	job := cron.NewChain(cron.SkipIfStillRunning(cronLogger{name: name})).Then(
+		cron.FuncJob(func() { s.execute(name, timeout, task.Run) }),
 	)
-	if _, err := s.cron.AddJob(task.Spec, job); err != nil {
-		return fmt.Errorf("scheduler: task %q: %w", task.Name, err)
+	if _, err := s.cron.AddJob(spec, job); err != nil {
+		return fmt.Errorf("scheduler: task %q: %w", name, err)
 	}
-	s.names[task.Name] = struct{}{}
+	s.names[name] = struct{}{}
 	return nil
 }
 
@@ -130,37 +133,37 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 	}
 }
 
-func (s *Scheduler) execute(task Task) {
+func (s *Scheduler) execute(name string, timeout time.Duration, run func(context.Context) error) {
 	ctx := s.runCtx
 	if ctx.Err() != nil {
 		return
 	}
 	traceID, err := uuid.NewRandom()
 	if err != nil {
-		log.Error(ctx, "Generate task trace ID failed", zap.String("task_name", task.Name), zap.Error(err))
+		log.Error(ctx, "Generate task trace ID failed", zap.String("task_name", name), zap.Error(err))
 		return
 	}
 	ctx = context.WithValue(ctx, "trace_id", traceID.String())
-	if task.Timeout > 0 {
+	if timeout > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, task.Timeout)
+		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
 	started := time.Now()
 	// Recover inside SkipIfStillRunning so its execution token is always returned.
 	defer func() {
 		if value := recover(); value != nil {
-			log.Error(ctx, "Scheduled task panicked", zap.String("task_name", task.Name),
+			log.Error(ctx, "Scheduled task panicked", zap.String("task_name", name),
 				zap.Duration("duration", time.Since(started)), zap.Any("panic", value), zap.ByteString("stack", debug.Stack()))
 		}
 	}()
-	log.Info(ctx, "Scheduled task started", zap.String("task_name", task.Name))
-	if err := task.Handler(ctx); err != nil {
-		log.Error(ctx, "Scheduled task failed", zap.String("task_name", task.Name),
+	log.Info(ctx, "Scheduled task started", zap.String("task_name", name))
+	if err := run(ctx); err != nil {
+		log.Error(ctx, "Scheduled task failed", zap.String("task_name", name),
 			zap.Duration("duration", time.Since(started)), zap.Error(err))
 		return
 	}
-	log.Info(ctx, "Scheduled task completed", zap.String("task_name", task.Name), zap.Duration("duration", time.Since(started)))
+	log.Info(ctx, "Scheduled task completed", zap.String("task_name", name), zap.Duration("duration", time.Since(started)))
 }
 
 // cronLogger adapts engine and skip diagnostics to the existing project logger.

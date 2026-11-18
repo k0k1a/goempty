@@ -1,3 +1,4 @@
+// Package job contains the application's scheduled entry points.
 package job
 
 import (
@@ -5,23 +6,21 @@ import (
 	"time"
 
 	"goempty/internal/service"
-	"goempty/pkg/log"
-	"goempty/pkg/scheduler"
-
-	"go.uber.org/zap"
 )
 
-func helloTask(helloService *service.HelloService) scheduler.Task {
-	handler := &helloHandler{helloService: helloService}
-	return scheduler.Task{Name: "hello", Spec: "* * * * *", Timeout: 5 * time.Second, Handler: handler.Handle}
+// HelloJob schedules the greeting event demo.
+type HelloJob struct {
+	helloService *service.HelloService
 }
 
-type helloHandler struct{ helloService *service.HelloService }
+func NewHelloJob(helloService *service.HelloService) *HelloJob {
+	return &HelloJob{helloService: helloService}
+}
 
-func (h *helloHandler) Handle(ctx context.Context) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	log.Info(ctx, "Hello task greeting", zap.String("message", h.helloService.Hello()))
-	return nil
+func (*HelloJob) Name() string           { return "hello" }
+func (*HelloJob) Spec() string           { return "* * * * *" }
+func (*HelloJob) Timeout() time.Duration { return 5 * time.Second }
+
+func (j *HelloJob) Run(ctx context.Context) error {
+	return j.helloService.PublishGreeting(ctx)
 }

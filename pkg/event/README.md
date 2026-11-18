@@ -1,34 +1,20 @@
 # 进程内事件分发
 
-`Bus` 复用 `pkg/async.Pool`，支持一个事件注册多个具名处理器。通用外壳 `Event` 位于本包的 `data.go`；业务 Payload 类型放在 `internal/entity`，例如 `entity/user_event.go` 中的 `UserRegisteredEvent`。已有业务对象字段和语义一致时可直接复用，不为事件机械复制一套类型。基础包不导入 internal，也不包含业务数据定义或调用业务 Service。
+`Bus` 根据业务事件的 `Name()` 查找已注册的处理器，再将整次分发提交到共享的 `async.Pool`。事件数据由具体类型携带。发布者和订阅者通过同一事件类型约定数据结构。
 
-事件通过稳定名称区分业务，例如 `user.registered`；`Payload` 携带对应数据。处理器检查载荷类型并返回明确错误。具体业务逻辑由注入的 Service 完成，不在基础包中实现。
+## 注册与发布
 
-```go
-events, err := event.New(taskPool)
-if err != nil {
-    return err
-}
-if err := events.Register("user.registered", "welcome", welcomeHandler); err != nil {
-    return err
-}
-if err := events.Register("user.registered", "initialize-profile", profileHandler); err != nil {
-    return err
-}
-// App 启动共享 taskPool 后调用 events.Start()，冻结注册。
-err = events.Publish(ctx, event.Event{Name: "user.registered", Payload: userID})
-```
+- 业务事件实现 `event.Event`，处理器实现 `event.Handler` 的 `Name()` 和 `Handle(ctx, event)`。事件名与处理器名使用稳定的标识，同一事件下的处理器名必须唯一。
+- 在 `Start` 前调用 `Subscribe(eventName, handler)`。先启动共享任务池，再启动 Bus；启动 Bus 会冻结订阅。
+- 调用 `Publish(ctx, event)` 后处理返回的提交错误。总线未启动、事件没有订阅者，以及任务池拒绝提交，都会返回错误。成功表示任务池接收了本次分发。
+- 处理器在 `Handle` 中校验具体事件类型和数据，把业务行为交给 Service。事件包含切片、map 或指针时，发布者和处理器都应在分发期间保持其引用数据不变。
 
-处理器签名是 `func(context.Context, event.Event) error`。发布者和处理器约定载荷类型；`Payload` 可以为空，不对任意对象进行反射匹配、序列化或自动转换。发布后不要修改载荷及其引用的 map、slice、指针数据；所有处理器也应把载荷视为只读数据。
+模板参考 [订阅装配](../../internal/app/events.go)、[发布接口和调用](../../internal/service/hello_event.go)、[事件处理器](../../internal/event/hello.go)。
 
-- `Register` 只允许在 Start 前调用，同一事件内处理器名称必须唯一；注册失败让应用初始化失败。Start 重复调用无副作用。
-- 一个事件作为一个任务提交，占用一个 Worker，处理器按注册顺序执行，共享整个事件的执行超时。不同事件可能并行，没有全局顺序。
-- 单个处理器返回错误或 panic 时，记录 `event_name`、`handler_name`、耗时、request/trace ID，panic 另带堆栈，然后继续后续处理器；处理器仍须响应 Context 取消。
-- 发布成功只表示已接收，不代表所有处理器执行成功。Worker 全忙时，Publish 阻塞等待；等待人数达到上限、没有处理器、未启动或池已关闭时返回错误，调用方必须处理。等待行为与任务池一致，不提供提交等待超时。
-- 不要在事件处理器中同步向同一个池发布新事件或提交任务，池饱和时可能因嵌套阻塞而死锁。
-- 一个处理器较慢会延迟同一事件的后续处理器；超时对整个事件生效，不为每个处理器重置。后续处理器可能收到已取消的 Context。
-- 不持久化、不自动重试、不跨进程分发；业务数据库写入与事件发布不构成原子操作。
+## 分发结果
 
-Wire 默认创建共享 Bus，由 App 启动。接入真实业务时，在 `internal/app` 的 `newApp` 中注册 Handler，将处理器需要的 Service 加入该构造函数参数，然后运行 `make wire`。注册失败应直接返回错误，注册必须在 App.Run 前完成。Service 或其他发布者通过构造函数接收 Bus，不通过 App 或全局变量查找；Bus 的创建不依赖 Service，以免与发布者形成依赖循环。
+一次发布占用一个 Worker。订阅者按注册顺序执行，共用 Worker 开始处理时创建的超时上下文。不同发布可以并行。处理器返回错误或 panic 时，总线记录其事件名、处理器名、耗时和已有的关联 ID，再运行后续处理器。处理器需要响应上下文取消，后续处理器可能在上下文已取消时被调用。
 
-Bus 不拥有 Pool，也不单独停止 Pool。App 退出时停止任务池，所有事件继承其取消及关闭规则，详见[任务池](../async/README.md)。
+处理器错误通过日志观察。单个处理器出错后，任务池仍可能记录 `Async task completed`。事件只在当前进程分发，无持久化和自动重试。需要可靠交付的业务应为写入成功但发布失败、处理提前取消等情形约定恢复行为。
+
+Bus 使用共享任务池的接收和关闭规则。Worker 全忙时发布者可能阻塞，请求结束或调用超时无法中断已经开始的等待。同一任务池中的处理器不得同步再次向该池发布或提交任务。 [任务池行为](../async/README.md)

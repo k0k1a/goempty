@@ -4,13 +4,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"goempty/internal/service"
 )
 
 func TestHTTPHealthEndpoints(t *testing.T) {
 	handler := newHTTPHandler(&httpDependencies{
-		HelloService: service.NewHelloService(helloRepoStub{message: "hello"}),
+		HelloService: newTestHelloService(helloRepoStub{message: "hello"}),
 	})
 	for _, path := range []string{"/healthz", "/readyz"} {
 		t.Run(path, func(t *testing.T) {

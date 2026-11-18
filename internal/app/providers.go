@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"goempty/config"
@@ -80,10 +81,13 @@ func newMongoDB(ctx context.Context, cfg mongodb.Config, shutdownTimeout time.Du
 
 // App retains the shared pools for its lifetime; business consumers receive
 // them directly through their constructors when storage-backed code is added.
-func newApp(server *httpserver.Server, jobs *scheduler.Scheduler, taskPool *async.Pool, eventBus *event.Bus, shutdownTimeout time.Duration, handle *gorm.DB, client *goredis.Client, mongoClient *mongo.Client) (*App, error) {
+func newApp(server *httpserver.Server, jobs *scheduler.Scheduler, taskPool *async.Pool, eventBus *event.Bus, eventDeps *eventDependencies, shutdownTimeout time.Duration, handle *gorm.DB, client *goredis.Client, mongoClient *mongo.Client) (*App, error) {
 	a, err := New(server, jobs, taskPool, eventBus, shutdownTimeout)
 	if err != nil {
 		return nil, err
+	}
+	if err := registerEvents(eventBus, eventDeps); err != nil {
+		return nil, fmt.Errorf("register event controllers: %w", err)
 	}
 	a.database = handle
 	a.redisClient = client

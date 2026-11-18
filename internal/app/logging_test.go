@@ -11,15 +11,13 @@ import (
 	"strings"
 	"testing"
 
-	"goempty/internal/service"
-
 	"github.com/gin-gonic/gin"
 )
 
 func TestHTTPAccessAndPanicLogs(t *testing.T) {
 	if os.Getenv("GOEMPTY_HTTP_LOG_TEST") == "1" {
 		handler := newHTTPHandler(&httpDependencies{
-			HelloService: service.NewHelloService(helloRepoStub{message: "hello"}),
+			HelloService: newTestHelloService(helloRepoStub{message: "hello"}),
 		})
 		handler.GET("/users/:id", func(c *gin.Context) { c.Status(http.StatusOK) })
 		handler.GET("/panic", loggingPanicHandler)

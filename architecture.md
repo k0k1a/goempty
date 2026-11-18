@@ -2,27 +2,29 @@
 
 本文规定项目目录、各层职责与对象复用规则。按任务阅读相关章节，目录树仅在需要定位或组织文件时查阅。
 
-按任务选择章节：[分层与依赖](#分层与依赖)、[各层命名规范](#各层命名规范)、[对象与复用](#对象与复用)、[HTTP、MQ 与定时任务](#httpmq-与定时任务)、[事务职责](#事务职责)、[公共分页](#公共分页)、[实施与验证](#实施与验证)、[目录结构](#目录结构)。
+按任务选择章节：[分层与依赖](#分层与依赖)、[各层命名规范](#各层命名规范)、[对象与复用](#对象与复用)、[HTTP 与 MQ](#http-与-mq)、[定时任务](#定时任务)、[进程内异步任务与事件](#进程内异步任务与事件)、[事务职责](#事务职责)、[缓存接入](#缓存接入)、[公共分页](#公共分页)、[测试放置](#测试放置)、[目录结构](#目录结构)。
 
 ## 分层与依赖
 
 - `controller`：HTTP 请求绑定与校验，调用 service，映射 HTTP 结果与错误。
 - `consumer`：消息消费入口，解码和校验消息，调用 service，处理 ACK 与重试。
+- `event`：进程内事件入口，校验事件类型和数据，调用 service。
 - `job`：定时任务入口，准备执行参数并调用 service。
 - `entity`：集中存放项目业务数据、消息和业务错误，具体遵循对象与复用规则。
 - `service`：业务校验、权限规则、流程编排，不编写事务；不依赖 HTTP 框架；可以导入 repo 包，字段及构造函数依赖接口，不绑定具体实现类型。
 - `repo`：数据库、缓存、外部 HTTP 调用、消息发布的具体实现；封装完整原子操作及事务，不依赖 controller 的请求或响应类型。
 - `app`：创建具体实现，通过构造函数注入依赖；负责进程级生命周期。
-- `pkg`：不包含业务知识的基础组件，不导入本项目的 internal 包。
+- `pkg`：不包含业务知识的基础组件，不导入本项目的 internal 包。各功能按需落地。基础组件优先复用所选库的能力，封装项目需要统一的配置和生命周期行为。
 
 `repo` 承担 DAO 职责。
 
 调用流程：
 
 ```text
-HTTP handler ─┐
-MQ consumer ──┼──→ service → 依赖接口 → repo 实现 → 数据库 / 缓存 / 外部系统
-定时任务 job ─┘
+HTTP Controller ──┐
+MQ consumer ──────┤
+Event Controller ─┼──→ service → 依赖接口 → repo 实现 → 数据库 / 缓存 / 外部系统
+定时任务 Job ─────┘
 ```
 
 仓储、缓存及外部能力接口定义在对应 repo 文件中，与实现放在同一包，由 `app` 将具体实现注入 service。service 可以导入 repo 包，但字段和构造函数使用接口，不使用具体实现类型。repo 不导入 service，项目业务数据使用 entity 或 `repo/db/model` 中的纯数据类型，三方接口对象使用对应客户端包类型；model 不依赖 service 或 repo 实现。
@@ -36,6 +38,7 @@ service 放在同一个 Go 包内，通过业务文件和不同 Service 类型�
 | 职责 | 类型命名示例 | 字段、参数和变量命名示例 |
 | --- | --- | --- |
 | HTTP Controller | `UserController` | `userController` |
+| Event Controller | `UserEventController` | `userEventController` |
 | 业务 Service | `UserService` | `userService` |
 | 数据库 Repo | `UserRepo` | `userRepo` |
 | 缓存 Cache | `UserCache` | `userCache` |
@@ -60,7 +63,7 @@ service 放在同一个 Go 包内，通过业务文件和不同 Service 类型�
 | Service 业务对象 | 按业务语义命名，含查询条件、聚合结果，不强制 `Input/Result` 后缀 | `entity/<业务>.go` |
 | Repo 存储模型 | 按表或集合命名，字段对应存储结构 | `repo/db/model` |
 | MQ 消息 | `XxxMessage` | `entity/<业务>_message.go` |
-| 进程内事件 Payload | 业务事件数据，例如 `UserRegisteredEvent`；字段和语义一致时复用已有业务对象 | `entity/<业务>_event.go` 或已有业务文件 |
+| 进程内业务事件 | 实现 `event.Event`，例如 `UserRegisteredEvent`。字段和语义一致时复用已有业务对象 | `entity/<业务>_event.go` 或已有业务文件 |
 | 三方接口对象 | 遵循对应接口语义，可直接供调用方使用 | 对应 `repo/webapi/<系统>` 包 |
 
 - 字段和语义一致时直接复用，包括数据库模型；简单参数直接传递，任务参数复用业务对象，不为分层配齐多套对象。
@@ -70,15 +73,21 @@ service 放在同一个 Go 包内，通过业务文件和不同 Service 类型�
 - 业务实体可封装仅依赖自身字段和显式参数的状态判断、合法性判断及状态转换；实体不依赖 Repo、数据库、HTTP、缓存或日志，时间判断通过显式传入 `time.Time`。跨实体规则、外部调用和流程编排仍由 Service 负责。
 - 请求仅绑定调用方可设置的字段，可信身份由入口取得并显式传入；对外输出排除敏感字段。entity 不依赖 Gin 或各层实现，可携带序列化、绑定及校验标签。
 
-例外：业务错误放 `entity/error.go`，不包含 HTTP 状态；HTTP 响应输出与公共响应外壳放 `controller/response`；配置和基础组件类型放 `config` 或对应 `pkg` 包；组件实现与接口留在各自所属包。
+配置和基础组件类型放在 `config` 或对应的 `pkg` 包。组件实现与接口留在各自所属包。
 
-## HTTP、MQ 与定时任务
+### 错误与响应适配
+
+错误类型、公共业务错误及具体业务错误统一放在 `internal/entity/error.go`。业务错误不包含 HTTP 状态。HTTP 响应输出和公共响应外壳放在 `internal/controller/response`，错误到 HTTP 响应的转换由该包的 `error.go` 负责。 [错误处理约定](conventions.md#错误处理约定)
+
+## HTTP 与 MQ
 
 ### HTTP
 
 本项目提供的 HTTP 接口统一放在 `controller`，不额外设置 http 子目录。内网可达性由监听地址、网关和网络配置等控制，调用权限由鉴权等机制控制。
 
-`repo/webapi` 仅用于主动调用其他系统。内部系统与第三方平台按系统或厂商名平级建子目录，不使用嵌套的 `internal` 作为系统分类，避免触发 Go 的包导入限制。
+### 外部 HTTP 客户端
+
+`internal/repo/webapi` 仅用于主动调用其他系统。内部系统与第三方平台按系统或厂商名平级建子目录，不使用嵌套的 `internal` 作为系统分类，避免触发 Go 的包导入限制。客户端通过构造函数注入和复用，调用方依赖接口。 [外部 HTTP 调用约定](conventions.md#外部-http-调用)
 
 ### 消息消费与发布
 
@@ -88,21 +97,26 @@ service 放在同一个 Go 包内，通过业务文件和不同 Service 类型�
 - 通用连接与发布消费基础封装按实际中间件命名，如 `pkg/rabbitmq` 或 `pkg/kafka`，不包含订单等业务知识。目录树中的 rabbitmq 为命名示例，不指定中间件选型。
 - 消息对象统一放 `internal/entity/<业务>_message.go`。消息由独立发布者、消费者维护，或有独立版本及兼容性要求时，单独定义消息类型；其余场景按字段和语义判断是否复用已有对象。
 
-### 定时任务
+## 定时任务
 
-- 任务入口放 `internal/job`，生成执行时间、批次等参数后调用 service。
-- 注册放 `internal/job/register.go`，由 Wire 注入 Service；启停由 App 管理，调度器基础封装放 `pkg/scheduler`。
-- HTTP、MQ 与定时任务触发同一业务时复用 service，避免分别实现业务规则。
+任务放在 `internal/job`，实现 `scheduler.Task`。`Run(ctx)` 准备触发本次业务所需的参数，再调用 Service。同一业务可以由 HTTP、MQ、定时任务或事件触发，业务规则统一由 Service 实现。
 
-### 进程内异步任务与事件
+`internal/app/jobs.go` 接收 Wire 装配的 Service，创建调度器和任务，并在应用启动前完成注册。 [调度行为](conventions.md#定时任务)
 
-进程内异步任务使用 `pkg/async`，事件分发使用 `pkg/event`，不替代外部 MQ。业务 Payload 类型放在 entity；通用外壳 `event.Event` 和分发逻辑留在 pkg/event，基础包不导入 internal，不定义具体业务数据。业务处理器由 app 装配和注册，通过构造函数注入 Service，处理器调用 Service；发布者通过构造函数接收 Pool 或 Bus。启动前完成注册，App 管理启停。
+## 进程内异步任务与事件
 
-## 实施与验证
+- **事件数据**在 `internal/entity` 定义，事件用 `Name()` 提供稳定的名称。Event Controller 在 `internal/event` 校验具体类型和业务参数，再调用注入的 Service。
+- **发布**由需要发事件的 Service 编排。Service 声明并接收发布接口，Wire 将共享 Bus 绑定到该接口。Bus 只依赖任务池，Service 和事件入口均可在 Bus 创建后装配。
+- **订阅**在 `internal/app/events.go` 装配。App 创建具体 Event Controller，显式绑定事件名和处理器。
+- **直接提交异步任务**时，通过构造函数接收共享任务池。需要按事件名向多个处理器分发时使用 Bus。 [提交与执行约定](conventions.md#进程内异步任务与事件)
 
-各功能按需落地。基础组件优先复用所选库的能力，封装项目需要统一的配置和生命周期行为。
+## 缓存接入
 
-单元测试与被测代码就近放置；需要数据库、MQ 或完整 HTTP 服务的验证放 `integration-test`。代码落地后优先检查受影响包的编译、测试及依赖方向。
+缓存访问、key 和序列化放在 `internal/repo/cache`，Service 依赖对应接口。按业务需要接入缓存，不预先创建通用缓存框架。 [缓存使用规范](conventions.md#缓存使用规范)
+
+## 测试放置
+
+单元测试与被测代码就近放置。需要数据库、MQ 或完整 HTTP 服务的验证放在 `integration-test`。 [验证流程](AGENTS.md#验证)
 
 ## 事务职责
 
@@ -110,7 +124,7 @@ Service 不编写事务，不向 Repo 传入事务回调；完整原子操作及
 
 GORM / MySQL 的事务写在 Repo 层，不暴露 GORM 事务句柄。需要原子完成的多个数据库步骤由一个 Repo 方法封装，内部负责事务、锁、条件更新、提交和失败回滚；依赖数据库当前状态的校验也在事务内完成，不能以多次独立写操作代替事务。
 
-MongoDB 优先使用单文档条件更新；多个文档需要共同成功或失败时，由 Repo 封装事务，包括同一集合中的多个文档。允许部分成功的场景必须在业务方案中明确失败语义和重试边界；建模原则见 [MongoDB 原子性](conventions.md#mongodb-原子性)。
+MongoDB 的原子操作与事务同样由 Repo 封装。操作选择、失败语义和重试边界见 [MongoDB 原子性](conventions.md#mongodb-原子性)。
 
 ## 公共分页
 
@@ -141,7 +155,8 @@ MongoDB 优先使用单文档条件更新；多个文档需要共同成功或失
 │   │   ├── wire.go                 # Wire 依赖声明与私有 injector
 │   │   ├── wire_gen.go             # Wire 生成的组装及失败清理代码
 │   │   ├── messaging.go           # 扩展示例：注册消息消费者，管理消费启停
-│   │   └── scheduler.go           # 扩展示例：注册定时任务，管理调度启停
+│   │   ├── events.go              # 装配事件 Controller 和订阅
+│   │   └── jobs.go                # 创建调度器并注册业务任务
 │   ├── controller/                 # HTTP 接口适配，不承载核心业务逻辑
 │   │   ├── user.go                # 扩展示例：用户 HTTP handler
 │   │   ├── order.go               # 扩展示例：订单 HTTP handler
@@ -154,11 +169,14 @@ MongoDB 优先使用单文档条件更新；多个文档需要共同成功或失
 │   │       └── error.go            # 业务错误解析与统一错误响应
 │   ├── consumer/                  # 扩展示例
 │   │   └── order.go                # 消息消费入口：解码、调用 service、ACK 与重试
+│   ├── event/
+│   │   └── hello.go               # Hello 事件入口
 │   ├── job/
-│   │   └── order_timeout.go       # 扩展示例：定时任务入口，调用 service
+│   │   └── hello.go               # Hello 定时任务入口
 │   ├── entity/                     # 业务数据与错误定义，不依赖各层实现
 │   │   ├── error.go                # 错误类型、公共错误与具体业务错误
 │   │   ├── order.go               # 扩展示例：订单输入、结果及共用业务对象
+│   │   ├── hello_event.go         # Hello 事件类型
 │   │   ├── order_message.go       # 扩展示例：订单消息对象
 │   │   └── user_message.go        # 扩展示例：用户消息对象
 │   ├── service/                    # 应用业务逻辑，同一包内按业务拆文件

@@ -19,13 +19,13 @@ func TestShutdownRunningAppSharesErrorAndCleansUpOnce(t *testing.T) {
 	}
 	canceled, release, entered := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	defer close(release)
-	if err := a.eventBus.Register("shutdown", "hold", func(ctx context.Context, _ event.Event) error {
+	if err := a.eventBus.Subscribe("shutdown", testEventHandler{"hold", func(ctx context.Context, _ event.Event) error {
 		close(entered)
 		<-ctx.Done()
 		close(canceled)
 		<-release
 		return ctx.Err()
-	}); err != nil {
+	}}); err != nil {
 		t.Fatal(err)
 	}
 	calls := 0
@@ -36,7 +36,7 @@ func TestShutdownRunningAppSharesErrorAndCleansUpOnce(t *testing.T) {
 	go func() { runDone <- a.Run(runCtx) }()
 	deadline := time.After(time.Second)
 	for {
-		err := a.eventBus.Publish(context.Background(), event.Event{Name: "shutdown"})
+		err := a.eventBus.Publish(context.Background(), testEvent("shutdown"))
 		if err == nil {
 			break
 		}
