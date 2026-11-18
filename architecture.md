@@ -132,98 +132,85 @@ MongoDB 的原子操作与事务同样由 Repo 封装。操作选择、失败语
 
 ## 目录结构
 
-标注“扩展示例”的节点及其子项按实际需求创建，其余节点已存在；业务名称和目录内文件仅展示组织方式。认证与 MQ 中间件均按实际需求和选型添加。
+目录树列出模板的主要目录和关键文件。业务文件以现有 Hello demo 为例，新增同类业务文件时无需更新目录树。标注“按需”的路径随实际需求创建。
 
 ```text
 ├── cmd/
 │   └── app/
-│       └── main.go                 # 程序入口：加载配置，调用 app 启动
-├── config/
-│   ├── config.go                   # 应用配置结构，按实际需求增加字段
-│   ├── load.go                     # 按 APP_NAME、ENV 选择 YAML，Viper 加载
-│   ├── load_test.go                # 环境选择与非法配置测试
-│   └── README.md                   # 配置加载与启动方式说明
-├── configs/                       # 按服务名_环境.yaml 区分完整配置
+│       └── main.go                 # 程序入口，加载配置并启动应用
+├── config/                         # 应用配置定义、加载与监听
+├── configs/                        # 按服务名_环境.yaml 存放配置
 │   ├── app_dev.yaml
 │   ├── app_test.yaml
 │   └── app_prod.yaml
 ├── internal/
-│   ├── app/
-│   │   ├── app.go                  # 组装依赖，统一管理启动、关闭与资源释放
-│   │   ├── http.go                 # 创建 HTTP 服务和 Controller，集中装配路由和中间件
-│   │   ├── providers.go            # Initialize 入口、MySQL/Redis/MongoDB provider 与清理函数
-│   │   ├── wire.go                 # Wire 依赖声明与私有 injector
-│   │   ├── wire_gen.go             # Wire 生成的组装及失败清理代码
-│   │   ├── messaging.go           # 扩展示例：注册消息消费者，管理消费启停
-│   │   ├── events.go              # 装配事件 Controller 和订阅
-│   │   └── jobs.go                # 创建调度器并注册业务任务
-│   ├── controller/                 # HTTP 接口适配，不承载核心业务逻辑
-│   │   ├── user.go                # 扩展示例：用户 HTTP handler
-│   │   ├── order.go               # 扩展示例：订单 HTTP handler
+│   ├── app/                        # 依赖装配与生命周期管理
+│   │   ├── app.go                  # 统一管理应用启停与资源释放
+│   │   ├── http.go                 # 注册路由和中间件
+│   │   ├── events.go               # 注册进程内事件订阅
+│   │   ├── jobs.go                 # 注册定时任务
+│   │   ├── providers.go            # 初始化入口、组件构造与清理
+│   │   ├── wire.go                 # Wire 依赖声明
+│   │   ├── wire_gen.go             # Wire 生成的装配代码
+│   │   └── messaging.go            # 按需，注册消息消费者并管理启停
+│   ├── controller/                 # HTTP 接口适配
+│   │   ├── hello.go
 │   │   ├── error.go                # 路由不存在、方法不支持的错误入口
-│   │   ├── middleware/
-│   │   │   ├── auth.go            # 扩展示例：身份认证
-│   │   │   └── middleware.go       # 请求标识、访问日志与 panic 恢复
-│   │   └── response/
-│   │       ├── response.go         # 统一响应外壳：code、message、data 等
-│   │       └── error.go            # 业务错误解析与统一错误响应
-│   ├── consumer/                  # 扩展示例
-│   │   └── order.go                # 消息消费入口：解码、调用 service、ACK 与重试
-│   ├── event/
-│   │   └── hello.go               # Hello 事件入口
-│   ├── job/
-│   │   └── hello.go               # Hello 定时任务入口
-│   ├── entity/                     # 业务数据与错误定义，不依赖各层实现
-│   │   ├── error.go                # 错误类型、公共错误与具体业务错误
-│   │   ├── order.go               # 扩展示例：订单输入、结果及共用业务对象
-│   │   ├── hello_event.go         # Hello 事件类型
-│   │   ├── order_message.go       # 扩展示例：订单消息对象
-│   │   └── user_message.go        # 扩展示例：用户消息对象
-│   ├── service/                    # 应用业务逻辑，同一包内按业务拆文件
-│   │   ├── user.go                # 扩展示例：UserService 及业务方法
-│   │   ├── user_test.go           # 扩展示例：用户业务单元测试
-│   │   ├── order.go               # 扩展示例：OrderService 及业务方法
-│   │   └── order_test.go          # 扩展示例：订单业务单元测试
-│   └── repo/                       # DAO 职责：数据访问及外部能力的具体实现
-│       ├── db/
-│       │   ├── user.go            # 扩展示例：用户数据库访问
-│       │   ├── order.go           # 扩展示例：订单数据库访问
-│       │   ├── transaction.go     # 扩展示例：Repo 内部事务辅助
-│       │   └── model/             # 扩展示例
-│       │       ├── user.go         # 用户表 DO、ORM 映射
-│       │       └── order.go        # 订单表 DO、ORM 映射
-│       ├── cache/                 # 扩展示例
-│       │   ├── user.go             # 用户缓存访问、key 与序列化
-│       │   └── order.go            # 订单缓存访问
-│       ├── webapi/                 # 主动调用其他系统的 HTTP 客户端
-│       │   ├── inventory/         # 扩展示例：内部库存系统
-│       │   │   └── client.go       # 具体客户端；三方协议对象留在本包
-│       │   └── wechat/            # 扩展示例：第三方平台，与内部系统平级
+│   │   ├── middleware/             # 请求标识、访问日志与 panic 恢复
+│   │   │   └── auth.go             # 按需，接入身份认证
+│   │   └── response/               # 统一响应和 HTTP 错误适配
+│   ├── consumer/                   # 按需，MQ 消费入口
+│   ├── event/                      # 进程内事件入口
+│   │   └── hello.go
+│   ├── job/                        # 定时任务入口
+│   │   └── hello.go
+│   ├── entity/                     # 业务数据、事件、公共分页与错误定义
+│   │   ├── hello.go
+│   │   ├── hello_event.go
+│   │   ├── error.go
+│   │   └── page.go
+│   ├── service/                    # 业务逻辑，按业务拆分文件
+│   │   ├── hello.go
+│   │   └── hello_event.go
+│   └── repo/                       # 数据访问与外部能力实现
+│       ├── db/                     # 数据库存储访问
+│       │   ├── hello.go
+│       │   └── model/              # 按需，数据库模型
+│       ├── cache/                  # 按需，缓存访问
+│       ├── webapi/                 # 外部 HTTP 客户端，按系统划分子包
+│       │   └── hello/
 │       │       └── client.go
-│       └── publisher/             # 扩展示例
-│           └── order.go            # 业务消息发布、消息编码与投递
-├── pkg/                           # 不含业务知识的基础组件，按需封装
-│   ├── log/                       # 日志初始化、Context 请求标识与通用封装
-│   ├── db/                        # MySQL / GORM 连接与连接池初始化
-│   ├── redis/                     # Redis 客户端初始化
-│   ├── mongodb/                   # MongoDB 客户端初始化
-│   ├── httpclient/                # 扩展示例：通用 HTTP 客户端配置
-│   ├── httpserver/                # HTTP 服务超时、启动与优雅关闭
-│   ├── rabbitmq/                  # 扩展示例：消息中间件基础封装，按实际选型命名
-│   └── scheduler/                 # 调度器基础封装
-├── migrations/                    # 扩展示例：数据库版本迁移脚本
-├── integration-test/              # 数据库、HTTP、MQ 等集成测试
-├── docs/                          # 接口文档及其他开发文档
-├── scripts/                       # 构建、检查、代码生成等脚本
-├── architecture.md                # 本文：目录结构与职责
+│       └── publisher/              # 按需，业务消息发布
+├── pkg/                            # 基础组件
+│   ├── async/                      # 进程内异步任务池
+│   ├── db/                         # MySQL / GORM 连接与连接池
+│   ├── env/                        # 应用名称与运行环境
+│   ├── event/                      # 进程内事件总线
+│   ├── httpclient/                 # 按需，通用 HTTP 客户端封装
+│   ├── httpserver/                 # HTTP 服务与优雅关闭
+│   ├── log/                        # 日志与请求标识
+│   ├── mongodb/                    # MongoDB 客户端
+│   ├── rabbitmq/                   # 按需，MQ 基础封装，按实际选型命名
+│   ├── redis/                      # Redis 客户端
+│   └── scheduler/                  # 定时任务调度
+├── migrations/                     # 按需，数据库版本迁移脚本
+├── integration-test/               # 依赖实际组件的集成测试
+├── docs/
+│   └── swagger/                    # Swagger 接口文档
+├── scripts/
+│   └── generate-api-docs/          # Swagger 文档生成入口
+├── .agents/
+│   └── skills/
+│       └── goempty-new-project/    # 新项目生成与模板裁剪
 ├── .gitignore
-├── .env.example                   # 扩展示例：环境变量示例，不包含真实凭据
-├── Dockerfile                     # 扩展示例：应用镜像构建
-├── docker-compose.yml             # 扩展示例：本地依赖服务编排
-├── Makefile                       # 统一构建、测试等命令
-├── README.md                      # 启动方式、配置说明与开发指南
+├── .env.example                    # 按需，环境变量示例
+├── AGENTS.md                       # 项目规则与文档阅读入口
+├── architecture.md                 # 目录、分层依赖与事务边界
+├── conventions.md                  # 组件选型与通用约定
+├── Dockerfile                      # 按需，应用镜像构建
+├── docker-compose.yml              # 按需，本地依赖服务编排
+├── Makefile                        # 构建、生成与测试命令
+├── README.md                       # 项目概览、启动与验证
 ├── go.mod
-└── go.sum                         # 引入依赖后由 Go 工具生成
+└── go.sum
 ```
-
-配置文件与环境变量按配置方案选用。目录树中的业务名称为组织示例。
