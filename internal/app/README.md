@@ -4,12 +4,12 @@ HTTP 中间件按 RequestID → AccessLog → Recovery → CORS 的顺序注册�
 
 Panic 错误日志额外包含 `stack`，保留原始 panic 调用位置；响应已经写出时不覆盖响应，只记录错误并中止后续处理。
 
-Wire 生成依赖组装代码，`App` 管理运行组件的生命周期。当前接入 MySQL、Redis、MongoDB、Gin、HTTP Server、定时调度器和 Hello Controller → Service → Repo 示例。
+Wire 生成依赖组装代码，`App` 管理运行组件的生命周期。当前接入 MySQL、Redis、MongoDB、Gin、HTTP Server、定时调度器、异步任务池、事件分发和 Hello Controller → Service → Repo 示例。
 
 - `wire.go`：维护 Wire provider 和私有 injector `initialize(ctx, cfg)`，返回 `(*App, cleanup, error)`，创建 `HelloRepo`，将它绑定到 `db.HelloRepository` 接口，再创建 `HelloService`、`httpDependencies`、HTTP Server、定时调度器、MySQL 连接、Redis 和 MongoDB 客户端及 App，此时尚未监听 HTTP 或启动调度。不再维护单独的 `app.Config`。
 - `providers.go`：公开的 `Initialize(ctx, cfg)` 返回 `(*App, error)`，调用私有 `initialize` 并将清理函数交给 App。集中定义 `newDatabase`、`newRedis`、`newMongoDB` 和 `newApp`，分别复用对应 pkg 包创建共享连接并提供清理函数；Redis 和 MongoDB 初始化会执行 Ping。`newApp` 调用 `New` 校验运行参数，再把连接保存到 App，使 Wire 能识别这些依赖并生成初始化和清理代码。后续业务消费者通过构造函数接收连接，不通过全局变量访问。
 - `wire_gen.go`：生成文件，不手工修改；普通构建不需要执行 Wire。
-- `app.go`：`App.Run(ctx)` 启动定时调度器并运行 HTTP 服务；取消或 HTTP 退出时停止调度、取消运行任务，在同一个独立关闭超时内并行等待 HTTP 请求和定时任务完成。HTTP 超时强制关闭连接；任务超时返回错误，不能强制终止不响应 context 的 Handler。退出前调用 `App.Close()` 释放依赖，提前取消和启动失败也会清理；`Close()` 通过 `sync.Once` 保证清理只执行一次。
+- `app.go`：`App.Run(ctx)` 启动异步任务池、冻结事件注册，启动定时调度器并运行 HTTP 服务；取消、HTTP 退出、部分启动失败或提前取消时都调用公开的 `Shutdown(ctx)`。Shutdown 并行停止 HTTP、调度器和任务池并等待，然后执行 Wire cleanup；通过 `sync.Once` 保证完整关闭只执行一次并保存关闭结果。HTTP 超时强制关闭连接；任务超时返回错误，不能强制终止不响应 context 的 Handler。组件启动与关闭通过生命周期锁协调，已关闭的 App 不能再次运行。
 - `http.go`：`newHTTPHandler(deps)` 手写创建 Gin Engine 和 Controller，按上述顺序装配中间件并集中注册路由；`newHTTPServer(cfg, deps)` 将 Gin Engine 交给 `pkg/httpserver`。Controller 只处理请求，不负责注册路由，也不由 Wire 创建。RequestID、AccessLog 和 Recovery 实现在 `internal/controller/middleware/middleware.go`，直接依赖公共 response 和日志，不反向依赖 controller 包。
 - `App` 不作为 service/controller 注册表。后续通过构造函数把 service 注入 controller、consumer、job，再将需要启停的组件注入 App。
 
@@ -63,15 +63,16 @@ application, err := app.Initialize(ctx, cfg)
 if err != nil {
     return err
 }
-defer application.Close()
+// 实际入口使用 defer 兜底；Run 会返回关闭错误，见 cmd/app/main.go。
+defer application.Shutdown(context.WithoutCancel(ctx))
 return application.Run(ctx)
 ```
 
 `Run` 仅调用一次；取消属于正常退出，启动或关闭失败返回错误。必须等待 `Run` 返回后才能退出进程。强制关闭连接不会终止 handler 的 goroutine，handler 应响应请求 context 的取消。
 
-MySQL、Redis 或 MongoDB 连接失败时应用启动失败。Wire 在后续装配失败时释放已创建的连接池（Redis 初始化失败时释放 MySQL，MongoDB 初始化失败时释放 Redis 和 MySQL）；成功初始化后由 App 持有 Wire 的清理函数。`Run` 完成 HTTP 和任务关闭（或关闭超时）后通过 `Close()` 依次释放 MongoDB、Redis、MySQL 连接池；提前取消和运行失败同样会清理。MongoDB 清理使用保留调用链值但独立于启动取消状态的 Context，超时取 `ShutdownTimeout`；这段时限在 HTTP 和任务排空之后开始，整个退出过程不保证在入口的 10 秒内完成。清理失败由 provider 记录英文错误日志，`Close()` 不返回错误。
+MySQL、Redis 或 MongoDB 连接失败时应用启动失败。Wire 在后续装配失败时释放已创建的连接池（Redis 初始化失败时释放 MySQL，MongoDB 初始化失败时释放 Redis 和 MySQL）；成功初始化后由 App 持有 Wire 的清理函数。`Shutdown` 完成 HTTP 和任务关闭（或关闭超时）后，依次释放 MongoDB、Redis、MySQL 连接池；提前取消和运行失败同样会清理。MongoDB 清理使用保留调用链值但独立于启动取消状态的 Context，超时取 `ShutdownTimeout`；这段时限在 HTTP 和任务排空之后开始，整个退出过程不保证在入口的 10 秒内完成。Shutdown 返回组件停止错误；Wire cleanup 的签名仍为 `func()`，连接清理失败由 provider 记录日志，不作为返回错误。
 
-入口使用 `defer application.Close()` 兜底，保证初始化成功但未调用 `Run` 时也能释放资源；与 `Run` 的自动清理不会重复执行。`Close()` 只释放依赖，应在 `Run` 返回后或从未运行时调用；停止正在运行的应用应取消传给 `Run` 的 context。进程退出码和日志最终关闭仍由 `main` 负责，App 不调用 `os.Exit`。
+公开关闭入口统一为 `Shutdown(ctx) error`，不再提供 `Close()`。初始化后未调用 Run、正在运行、部分启动失败都可以使用它。第一次调用的 Context 和配置中的 `ShutdownTimeout` 共同约束组件停止等待时间；并发调用者等待同一次关闭完成，重复调用返回保存的结果，不重新执行清理或重新等待超时任务。Run 收到取消信号时传入 `context.WithoutCancel(ctx)`，保留上下文值并提供独立关闭时间；直接调用 Shutdown 则遵循调用方的取消和 deadline。入口使用 defer 兜底，正常运行时的关闭错误由 Run 返回，不重复报告。进程退出码和日志最终关闭仍由 main 负责，App 不调用 os.Exit。
 
 MySQL、Redis 和 MongoDB 配置变更需重启，Viper 重载不会重新组装连接池。HTTP 和关闭超时由入口填充在启动配置副本上，不从 YAML 解码；`config.Get()` 仍只提供文件快照，这两个字段保持零值。`/hello` 仍返回固定问候，不建表、不执行自动迁移、不读写缓存或 MongoDB 集合，`/healthz` 和 `/readyz` 仍返回 HTTP 200 空响应体，不检查 MySQL、Redis 或 MongoDB。
 
@@ -85,6 +86,12 @@ Wire 官方仓库已归档，生成工具固定使用 v0.7.0：https://github.co
 
 `cmd/app` 入口在加载配置、启动文件监听和组装应用前，将 `time.Local` 统一设为 `Asia/Shanghai`。此后 `time.Now()`、当前 Zap 时间日志、默认调度器和 MySQL DSN 的 `loc=Local` 使用这一进程本地时区。只在启动阶段设置，不在运行中修改；直接调用 `app.Initialize` 的其他入口需自行初始化时区。该设置不会改变 MySQL 服务端或会话时区，也不会覆盖显式使用 UTC 或其他时区的时间操作。
 
-直接组装 App 时使用 `New(server, jobs, shutdownTimeout)`，调度器不可为 nil。App 负责 Start/Stop，调用方通过取消 `Run` 的 context 退出，不需要单独停止调度器。任务应响应取消；关闭超时后 App 仍会清理依赖，因此不响应取消的任务可能访问已关闭的连接池，必须在业务代码中避免。
+直接组装 App 时使用 `New(server, jobs, taskPool, eventBus, shutdownTimeout)`，调度器、任务池和事件总线不可为 nil，eventBus 必须使用同一个 taskPool。App 负责 Start/Stop，调用方可通过取消 Run 的 Context 或调用 Shutdown 退出，不需要单独停止调度器；启动后的调用方仍需等待 Run 返回再退出进程。任务应响应取消；关闭超时后 App 仍会清理依赖，因此不响应取消的任务可能访问已关闭的连接池，必须在业务代码中避免。
 
 调度器采用标准五字段表达式，支持 `@every`；同一任务重叠执行时跳过，不同任务可并行。错误和 panic 统一记录日志，不自动重试。注册仅限启动前，停止后不能重启，不提供分布式唯一执行保证。用法及边界见 [定时任务](../../pkg/scheduler/README.md)。时区和任务定义由代码管理，配置热加载不会改变已注册任务。
+
+## 异步任务与事件
+
+Wire 创建共享 `async.Pool` 和 `event.Bus`。Pool 的构造只校验配置，App.Run 才启动实际池；业务通过构造函数接收 Pool 或 Bus。业务 Payload 类型放在 `internal/entity`，通用 `Event` 外壳和分发逻辑留在 `pkg/event`，基础包不导入 internal。接入业务时，在 `newApp` 中接收需要的 Service 并注册处理器，注册失败返回错误；不在 Bus 构造函数中依赖 Service，以免发布者和 Bus 形成循环依赖。重新运行 `make wire`，不要手改生成文件。默认不注册业务事件、不发布示例事件。
+
+App 退出时并行关闭 HTTP、调度器和任务池；池停止接收任务，唤醒阻塞提交者，取消并等待已接收任务，再清理数据库连接。Worker 全忙时阻塞等待，等待人数达到配置上限后才拒绝，提交错误由调用方处理。一个事件占一个 Worker，多个处理器顺序执行，错误与 panic 隔离。详见[任务池](../../pkg/async/README.md)和[事件分发](../../pkg/event/README.md)。

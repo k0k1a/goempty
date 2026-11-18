@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"goempty/config"
+	"goempty/pkg/async"
 	"goempty/pkg/db"
+	"goempty/pkg/event"
 	"goempty/pkg/httpserver"
 	"goempty/pkg/log"
 	"goempty/pkg/mongodb"
@@ -78,8 +80,8 @@ func newMongoDB(ctx context.Context, cfg mongodb.Config, shutdownTimeout time.Du
 
 // App retains the shared pools for its lifetime; business consumers receive
 // them directly through their constructors when storage-backed code is added.
-func newApp(server *httpserver.Server, jobs *scheduler.Scheduler, shutdownTimeout time.Duration, handle *gorm.DB, client *goredis.Client, mongoClient *mongo.Client) (*App, error) {
-	a, err := New(server, jobs, shutdownTimeout)
+func newApp(server *httpserver.Server, jobs *scheduler.Scheduler, taskPool *async.Pool, eventBus *event.Bus, shutdownTimeout time.Duration, handle *gorm.DB, client *goredis.Client, mongoClient *mongo.Client) (*App, error) {
+	a, err := New(server, jobs, taskPool, eventBus, shutdownTimeout)
 	if err != nil {
 		return nil, err
 	}

@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"goempty/pkg/async"
 	"goempty/pkg/db"
 	"goempty/pkg/httpserver"
 	"goempty/pkg/mongodb"
@@ -13,6 +14,7 @@ import (
 
 // Config contains file settings and startup settings supplied by the entry point.
 type Config struct {
+	Async           async.Config      `mapstructure:"async"`
 	MySQL           db.Config         `mapstructure:"mysql"`
 	Redis           redis.Config      `mapstructure:"redis"`
 	MongoDB         mongodb.Config    `mapstructure:"mongodb"`

@@ -54,6 +54,20 @@ func TestLoadDatabaseConfiguration(t *testing.T) {
 	}
 }
 
+func TestLoadAsyncConfiguration(t *testing.T) {
+	setupConfig(t, "app_dev.yaml", "async:\n  concurrency: 8\n  max_blocking_tasks: 200\n  timeout: 15s\n")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Async.Concurrency != 8 || cfg.Async.MaxBlockingTasks != 200 || cfg.Async.Timeout != 15*time.Second {
+		t.Fatalf("async = %+v", cfg.Async)
+	}
+	if err := cfg.Async.Validate(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestLoadRedisConfiguration(t *testing.T) {
 	setupConfig(t, "app_dev.yaml", `redis:
   addr: "127.0.0.1:6379"

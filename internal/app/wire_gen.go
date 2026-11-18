@@ -12,6 +12,8 @@ import (
 	"goempty/internal/job"
 	"goempty/internal/repo/db"
 	"goempty/internal/service"
+	"goempty/pkg/async"
+	"goempty/pkg/event"
 )
 
 // Injectors from wire.go:
@@ -29,6 +31,15 @@ func initialize(ctx context.Context, cfg config.Config) (*App, func(), error) {
 		return nil, nil, err
 	}
 	scheduler, err := job.NewScheduler(helloService)
+	if err != nil {
+		return nil, nil, err
+	}
+	asyncConfig := cfg.Async
+	pool, err := async.New(asyncConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+	bus, err := event.New(pool)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -51,7 +62,7 @@ func initialize(ctx context.Context, cfg config.Config) (*App, func(), error) {
 		cleanup()
 		return nil, nil, err
 	}
-	app, err := newApp(server, scheduler, duration, gormDB, client, mongoClient)
+	app, err := newApp(server, scheduler, pool, bus, duration, gormDB, client, mongoClient)
 	if err != nil {
 		cleanup3()
 		cleanup2()

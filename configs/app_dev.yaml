@@ -1,3 +1,8 @@
+async:
+  concurrency: 4
+  max_blocking_tasks: 1000
+  timeout: 30s
+
 mysql:
   dsn: "goempty:CHANGE_ME@tcp(127.0.0.1:3306)/goempty?charset=utf8mb4&parseTime=true&loc=Local&timeout=5s&readTimeout=5s&writeTimeout=5s"
   max_open_conns: 10

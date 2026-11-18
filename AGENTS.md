@@ -12,6 +12,7 @@
 | 类型、依赖及 receiver 命名 | [各层命名规范](architecture.md#各层命名规范) |
 | 输入、结果、数据库对象及跨层复用 | [对象与复用](architecture.md#对象与复用) |
 | HTTP、消息或定时任务入口 | [HTTP、MQ 与定时任务](architecture.md#httpmq-与定时任务) |
+| 进程内异步任务与事件 | [对象与复用](architecture.md#对象与复用)、[异步任务与事件](conventions.md#进程内异步任务与事件) |
 | 原子操作、事务或并发更新 | [事务职责](architecture.md#事务职责) |
 | 技术选型、依赖或版本 | [组件选型](conventions.md#组件选型)、[版本约定](conventions.md#版本约定) |
 | 类型转换或集合操作 | [组件选型](conventions.md#组件选型) |

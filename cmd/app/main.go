@@ -39,7 +39,7 @@ func main() {
 	}
 }
 
-func run() error {
+func run() (runErr error) {
 	if err := initTimezone(); err != nil {
 		return err
 	}
@@ -73,7 +73,13 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("initialize application: %w", err)
 	}
-	defer application.Close()
+	defer func() {
+		// Run already reports shutdown errors; this also covers an initialized
+		// application that exits before Run is called without duplicating errors.
+		if err := application.Shutdown(context.WithoutCancel(ctx)); runErr == nil {
+			runErr = err
+		}
+	}()
 	return application.Run(ctx)
 }
 

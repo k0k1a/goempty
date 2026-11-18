@@ -97,7 +97,11 @@ func TestInitializeMySQLLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal("MySQL application initialization failed")
 	}
-	t.Cleanup(a.Close)
+	t.Cleanup(func() {
+		if err := a.Shutdown(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
 	if err := db.Ping(ctx, a.database); err != nil {
 		t.Fatal("assembled database is unavailable")
 	}
@@ -122,5 +126,7 @@ func TestInitializeMySQLLifecycle(t *testing.T) {
 	if err := mongodb.Ping(ctx, a.mongoClient); !errors.Is(err, mongo.ErrClientDisconnected) {
 		t.Fatal("MongoDB remains connected after application cleanup")
 	}
-	a.Close()
+	if err := a.Shutdown(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 }

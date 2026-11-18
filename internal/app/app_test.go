@@ -14,6 +14,8 @@ import (
 	"goempty/internal/job"
 	"goempty/internal/repo/db"
 	"goempty/internal/service"
+	"goempty/pkg/async"
+	"goempty/pkg/event"
 	"goempty/pkg/httpserver"
 	"goempty/pkg/scheduler"
 )
@@ -28,25 +30,39 @@ func TestAppValidation(t *testing.T) {
 			t.Fatalf("newHTTPTestApp(%+v) succeeded", cfg)
 		}
 	}
-	if _, err := New(nil, nil, time.Second); err == nil {
+	if _, err := New(nil, nil, nil, nil, time.Second); err == nil {
 		t.Fatal("New accepted nil server")
 	}
 }
 
-func TestAppCloseOnceWithoutRun(t *testing.T) {
+func TestAppShutdownOnceWithoutRun(t *testing.T) {
 	calls := 0
-	a := &App{cleanup: func() { calls++ }}
+	a, err := newHTTPTestApp(config.Config{HTTP: httpserver.Config{Addr: "127.0.0.1:0"}, ShutdownTimeout: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.cleanup = func() { calls++ }
 	var callers sync.WaitGroup
 	for range 10 {
-		callers.Go(a.Close)
+		callers.Go(func() {
+			if err := a.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
 	}
 	callers.Wait()
-	a.Close()
+	if err := a.Shutdown(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	if calls != 1 {
 		t.Fatalf("cleanup calls = %d, want 1", calls)
 	}
-	// Apps created directly with New have no external dependency cleanup.
-	(&App{}).Close()
+	if err := a.Run(context.Background()); err == nil {
+		t.Fatal("Run accepted a shut down application")
+	}
+	if err := a.taskPool.Start(context.Background()); !errors.Is(err, async.ErrClosed) {
+		t.Fatalf("pool after shutdown = %v", err)
+	}
 }
 
 func TestRunWaitsForTasksBeforeCleanup(t *testing.T) {
@@ -200,7 +216,9 @@ func TestRunStartupFailureAndCanceledContext(t *testing.T) {
 	if err := a.Run(ctx); err == nil {
 		t.Fatal("Run on occupied port succeeded")
 	}
-	a.Close()
+	if err := a.Shutdown(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	if calls != 1 {
 		t.Fatalf("cleanup calls after startup failure = %d, want 1", calls)
 	}
@@ -217,7 +235,9 @@ func TestRunStartupFailureAndCanceledContext(t *testing.T) {
 	if err := a.Run(canceled); err != nil {
 		t.Fatalf("already canceled Run = %v", err)
 	}
-	a.Close()
+	if err := a.Shutdown(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	if calls != 1 {
 		t.Fatalf("cleanup calls after early cancellation = %d, want 1", calls)
 	}
@@ -254,7 +274,8 @@ func TestRunShutdown(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			a, err := New(server, jobs, 250*time.Millisecond)
+			tasks, events := newTestTasks(t, async.Config{})
+			a, err := New(server, jobs, tasks, events, 250*time.Millisecond)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -318,7 +339,9 @@ func TestRunShutdown(t *testing.T) {
 			default:
 				t.Fatal("Run returned without releasing dependencies")
 			}
-			a.Close()
+			if err := a.Shutdown(context.Background()); !force && err != nil {
+				t.Fatal(err)
+			}
 			select {
 			case err := <-requestDone:
 				if !force && err != nil {
@@ -343,5 +366,114 @@ func newHTTPTestApp(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	return New(server, jobs, cfg.ShutdownTimeout)
+	tasks, err := async.New(cfg.Async)
+	if err != nil {
+		return nil, err
+	}
+	events, err := event.New(tasks)
+	if err != nil {
+		return nil, err
+	}
+	return New(server, jobs, tasks, events, cfg.ShutdownTimeout)
+}
+
+func newTestTasks(t *testing.T, cfg async.Config) (*async.Pool, *event.Bus) {
+	t.Helper()
+	tasks, err := async.New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := event.New(tasks)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tasks, events
+}
+
+func TestRunWaitsForEventsBeforeCleanup(t *testing.T) {
+	for _, timeout := range []bool{false, true} {
+		t.Run(map[bool]string{false: "drain", true: "timeout"}[timeout], func(t *testing.T) {
+			a, err := newHTTPTestApp(config.Config{HTTP: httpserver.Config{Addr: "127.0.0.1:0"}, ShutdownTimeout: 100 * time.Millisecond})
+			if err != nil {
+				t.Fatal(err)
+			}
+			canceled, release, last := make(chan struct{}), make(chan struct{}), make(chan struct{})
+			defer close(release)
+			if err := a.eventBus.Register("lifecycle", "hold", func(ctx context.Context, _ event.Event) error {
+				<-ctx.Done()
+				close(canceled)
+				<-release
+				return ctx.Err()
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if err := a.eventBus.Register("lifecycle", "last", func(context.Context, event.Event) error { close(last); return nil }); err != nil {
+				t.Fatal(err)
+			}
+			cleaned := make(chan struct{})
+			a.cleanup = func() { close(cleaned) }
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			done := make(chan error, 1)
+			go func() { done <- a.Run(ctx) }()
+			deadline := time.After(time.Second)
+			for {
+				err = a.eventBus.Publish(context.Background(), event.Event{Name: "lifecycle"})
+				if err == nil {
+					break
+				}
+				if !errors.Is(err, event.ErrNotStarted) {
+					t.Fatal(err)
+				}
+				select {
+				case <-deadline:
+					t.Fatal("app did not start")
+				case <-time.After(time.Millisecond):
+				}
+			}
+			cancel()
+			select {
+			case <-canceled:
+			case <-time.After(time.Second):
+				t.Fatal("event not canceled")
+			}
+			if !timeout {
+				select {
+				case <-cleaned:
+					t.Fatal("cleanup before event completed")
+				default:
+				}
+				release <- struct{}{}
+			}
+			select {
+			case err := <-done:
+				if timeout && !errors.Is(err, context.DeadlineExceeded) {
+					t.Fatalf("Run = %v", err)
+				}
+				if !timeout && err != nil {
+					t.Fatal(err)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("app did not stop")
+			}
+			select {
+			case <-cleaned:
+			default:
+				t.Fatal("cleanup missing")
+			}
+			if timeout {
+				release <- struct{}{}
+			}
+			stopCtx, stop := context.WithTimeout(context.Background(), time.Second)
+			defer stop()
+			if err := a.taskPool.Stop(stopCtx); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case <-last:
+			default:
+				t.Fatal("second event handler did not run")
+			}
+		})
+	}
 }

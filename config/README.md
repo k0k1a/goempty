@@ -53,7 +53,7 @@ mysql:
 
 先准备本地 MySQL、`goempty` 数据库和账号，将 `CHANGE_ME` 替换为本地密码。程序不安装 MySQL，也不创建数据库或表。本地 YAML 可保存本地凭据，不保存线上配置；不读取 `GOEMPTY_MYSQL_DSN`。`loc=Local` 使用应用进程的本地时区，`cmd/app` 入口统一设置为 `Asia/Shanghai`；此项只影响驱动的时间处理，不修改 MySQL 服务端或会话时区。
 
-`app_test.yaml` 和 `app_prod.yaml` 保持空模板，运行这些环境前需自行填写相应 `mysql`、`redis` 和 `mongodb` 配置；缺少配置会在初始化阶段启动失败。不提供线上连接信息。
+`app_test.yaml` 和 `app_prod.yaml` 仅预填异步任务池配置，数据库连接保持空模板，运行这些环境前需自行填写相应 `mysql`、`redis` 和 `mongodb` 配置；缺少配置会在初始化阶段启动失败。不提供线上连接信息。
 
 DSN 必须包含数据库名、`parseTime=true`，并设置正值 `timeout`、`readTimeout`、`writeTimeout`。初始化复用 `pkg/db.New`，context 仅在初始化前检查，连接过程由 DSN 网络超时约束，并非初始化总超时。连接池要求最大连接数大于零、空闲连接数在零至最大连接数之间、连接有效期非负。
 
@@ -115,3 +115,16 @@ Viper 重新读取失败时仍可能触发回调，此时反序列化的可能�
 监听路径在启动时固定，运行期间不通过 `APP_NAME`、`ENV` 切换文件。使用 Viper 自带的进程级监听，不提供单独停止接口；文件删除后的监听行为遵循 Viper，本方案面向已有文件的修改和替换。HTTP、PORT 和关闭超时保持上述行为。
 
 数据库连接只使用启动快照。文件重载不会重建连接池，修改 DSN 或连接池参数后必须重启应用。`app_test.yaml` 是测试环境运行配置，加载单元测试主要使用临时目录与文件。
+
+## 异步任务池
+
+`Config.Async` 复用 `pkg/async.Config`，三个环境文件均提供以下设置：
+
+```yaml
+async:
+  concurrency: 4
+  max_blocking_tasks: 1000
+  timeout: 30s
+```
+
+零值采用默认 4 个 Worker、最多 1000 个阻塞提交者、30 秒执行超时；负数配置或超过 int32 的并发数会在应用初始化时被拒绝。配置热加载只更新快照，不重建任务池，修改后需重启。事件分发和直接提交任务共用此池，任务超时对整个事件生效，不限制提交等待时间。详见[任务池](../pkg/async/README.md)。

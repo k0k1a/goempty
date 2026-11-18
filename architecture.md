@@ -60,6 +60,7 @@ service 放在同一个 Go 包内，通过业务文件和不同 Service 类型�
 | Service 业务对象 | 按业务语义命名，含查询条件、聚合结果，不强制 `Input/Result` 后缀 | `entity/<业务>.go` |
 | Repo 存储模型 | 按表或集合命名，字段对应存储结构 | `repo/db/model` |
 | MQ 消息 | `XxxMessage` | `entity/<业务>_message.go` |
+| 进程内事件 Payload | 业务事件数据，例如 `UserRegisteredEvent`；字段和语义一致时复用已有业务对象 | `entity/<业务>_event.go` 或已有业务文件 |
 | 三方接口对象 | 遵循对应接口语义，可直接供调用方使用 | 对应 `repo/webapi/<系统>` 包 |
 
 - 字段和语义一致时直接复用，包括数据库模型；简单参数直接传递，任务参数复用业务对象，不为分层配齐多套对象。
@@ -92,6 +93,10 @@ service 放在同一个 Go 包内，通过业务文件和不同 Service 类型�
 - 任务入口放 `internal/job`，生成执行时间、批次等参数后调用 service。
 - 注册放 `internal/job/register.go`，由 Wire 注入 Service；启停由 App 管理，调度器基础封装放 `pkg/scheduler`。
 - HTTP、MQ 与定时任务触发同一业务时复用 service，避免分别实现业务规则。
+
+### 进程内异步任务与事件
+
+进程内异步任务使用 `pkg/async`，事件分发使用 `pkg/event`，不替代外部 MQ。业务 Payload 类型放在 entity；通用外壳 `event.Event` 和分发逻辑留在 pkg/event，基础包不导入 internal，不定义具体业务数据。业务处理器由 app 装配和注册，通过构造函数注入 Service，处理器调用 Service；发布者通过构造函数接收 Pool 或 Bus。启动前完成注册，App 管理启停。
 
 ## 实施与验证
 

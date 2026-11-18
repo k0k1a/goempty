@@ -9,6 +9,8 @@ import (
 	"goempty/internal/job"
 	"goempty/internal/repo/db"
 	"goempty/internal/service"
+	"goempty/pkg/async"
+	"goempty/pkg/event"
 
 	"github.com/google/wire"
 )
@@ -16,7 +18,9 @@ import (
 // initialize assembles dependencies and returns cleanup for transfer to App.
 func initialize(ctx context.Context, cfg config.Config) (*App, func(), error) {
 	wire.Build(
-		wire.FieldsOf(new(config.Config), "MySQL", "Redis", "MongoDB", "HTTP", "ShutdownTimeout"),
+		wire.FieldsOf(new(config.Config), "MySQL", "Redis", "MongoDB", "HTTP", "Async", "ShutdownTimeout"),
+		async.New,
+		event.New,
 		newDatabase,
 		newRedis,
 		newMongoDB,

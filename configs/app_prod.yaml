@@ -1,1 +1,4 @@
-{}
+async:
+  concurrency: 4
+  max_blocking_tasks: 1000
+  timeout: 30s

@@ -1,6 +1,6 @@
 # goempty
 
-用于创建新 Go / Gin 服务的模板。已提供配置、日志、MySQL、Redis、MongoDB、统一响应、Wire 依赖组装、HTTP 优雅关闭和进程内定时调度。基础组件与生命周期测试保留，便于新项目修改后检查回归。
+用于创建新 Go / Gin 服务的模板。已提供配置、日志、MySQL、Redis、MongoDB、统一响应、Wire 依赖组装、HTTP 优雅关闭、进程内定时调度、异步任务池和事件分发。基础组件与生命周期测试保留，便于新项目修改后检查回归。
 
 ## 本地启动
 
@@ -81,6 +81,7 @@ MySQL / Redis / MongoDB 真实服务测试在缺少对应变量时跳过，不�
 | [HTTP 公共响应](internal/controller/response/README.md) | 公共响应与业务错误码 |
 | [HTTP Server](pkg/httpserver/README.md)、[日志](pkg/log/README.md)、[调度器](pkg/scheduler/README.md) | 组件使用和边界 |
 | [MongoDB](pkg/mongodb/README.md) | 客户端封装、配置和连接测试 |
+| [异步任务池](pkg/async/README.md)、[事件分发](pkg/event/README.md) | Ants 并发控制、一对多处理及关闭语义 |
 | [外部 HTTP 示例](internal/repo/webapi/hello/README.md) | 标准库客户端、超时、取消和响应解析 |
 | [Swagger](docs/swagger/README.md) | 注释与离线文档生成 |
 
