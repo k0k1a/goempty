@@ -76,7 +76,7 @@ func (s *Scheduler) Register(task Task) error {
 		return fmt.Errorf("scheduler: duplicate task %q", name)
 	}
 	job := cron.NewChain(cron.SkipIfStillRunning(cronLogger{name: name})).Then(
-		cron.FuncJob(func() { s.execute(name, timeout, task.Run) }),
+		cron.FuncJob(func() { s.execute(task) }),
 	)
 	if _, err := s.cron.AddJob(spec, job); err != nil {
 		return fmt.Errorf("scheduler: task %q: %w", name, err)
@@ -133,18 +133,19 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 	}
 }
 
-func (s *Scheduler) execute(name string, timeout time.Duration, run func(context.Context) error) {
+func (s *Scheduler) execute(task Task) {
 	ctx := s.runCtx
 	if ctx.Err() != nil {
 		return
 	}
+	name := task.Name()
 	traceID, err := uuid.NewRandom()
 	if err != nil {
 		log.Error(ctx, "Generate task trace ID failed", zap.String("task_name", name), zap.Error(err))
 		return
 	}
 	ctx = context.WithValue(ctx, "trace_id", traceID.String())
-	if timeout > 0 {
+	if timeout := task.Timeout(); timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
@@ -158,7 +159,7 @@ func (s *Scheduler) execute(name string, timeout time.Duration, run func(context
 		}
 	}()
 	log.Info(ctx, "Scheduled task started", zap.String("task_name", name))
-	if err := run(ctx); err != nil {
+	if err := task.Run(ctx); err != nil {
 		log.Error(ctx, "Scheduled task failed", zap.String("task_name", name),
 			zap.Duration("duration", time.Since(started)), zap.Error(err))
 		return

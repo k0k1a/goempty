@@ -105,7 +105,7 @@ func (b *Bus) Publish(ctx context.Context, e Event) error {
 	}
 	return b.pool.Submit(ctx, eventName, func(ctx context.Context) error {
 		for _, sub := range subs {
-			execute(ctx, eventName, e, sub)
+			execute(ctx, e, sub)
 		}
 		return nil
 	})
@@ -115,15 +115,16 @@ func validName(name string) bool {
 	return name != "" && strings.TrimSpace(name) == name
 }
 
-func execute(ctx context.Context, eventName string, e Event, sub subscription) {
+func execute(ctx context.Context, e Event, sub subscription) {
 	started := time.Now()
-	fields := []zap.Field{zap.String("event_name", eventName), zap.String("handler_name", sub.name)}
+	fields := []zap.Field{zap.String("handler_name", sub.name)}
 	defer func() {
 		if value := recover(); value != nil {
 			log.Error(ctx, "Event handler panicked", append(fields, zap.Any("panic", value),
 				zap.Duration("duration", time.Since(started)), zap.ByteString("stack", debug.Stack()))...)
 		}
 	}()
+	fields = append(fields, zap.String("event_name", e.Name()))
 	log.Info(ctx, "Event handler started", fields...)
 	if err := sub.handler.Handle(ctx, e); err != nil {
 		log.Error(ctx, "Event handler failed", append(fields, zap.Error(err), zap.Duration("duration", time.Since(started)))...)

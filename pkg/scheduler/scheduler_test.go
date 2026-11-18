@@ -194,16 +194,15 @@ func TestTaskTimeoutAndContextValues(t *testing.T) {
 		}
 		deadline, ok := ctx.Deadline()
 		if !ok || time.Until(deadline) > 10*time.Millisecond {
-			t.Fatal("registered task timeout was not used")
+			t.Fatal("task timeout was not applied")
 		}
 		<-ctx.Done()
 		taskErr = ctx.Err()
 		return taskErr
 	}}
-	if err := s.Register(&task); err != nil {
+	if err := s.Register(task); err != nil {
 		t.Fatal(err)
 	}
-	task.timeout = 0
 	parent, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	startTestScheduler(t, s, context.WithValue(parent, key{}, "preserved"))
