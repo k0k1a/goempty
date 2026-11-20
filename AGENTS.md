@@ -45,6 +45,7 @@
 ## 实施约束
 
 - 业务入口调用 Service，Service 依赖 Repo 接口。完整原子操作及事务由 Repo 封装。 [分层与依赖](architecture.md#分层与依赖) · [事务职责](architecture.md#事务职责)
+- 业务实体的判断和状态转换，若仅依赖自身字段和显式参数，优先封装为实体方法。适用边界见 [对象与复用](architecture.md#对象与复用)。
 - `internal/app` 负责装配本项目启用的入口和运行组件。应用启动前完成路由、任务和订阅的注册，由 App 统一管理启停。 [生命周期](conventions.md#生命周期)
 - 按目录职责放置对象和错误。跨层传递时不增加仅逐字段复制的对象。 [对象与复用](architecture.md#对象与复用) · [错误与响应适配](architecture.md#错误与响应适配)
 - 业务组件及依赖使用职责后缀。receiver 使用简短名称，同一类型保持一致。 [各层命名规范](architecture.md#各层命名规范)
