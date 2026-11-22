@@ -30,3 +30,9 @@ mongodb:
   connect_timeout: 5s
   server_selection_timeout: 5s
   timeout: 5s
+
+kafka:
+  brokers:
+    - "127.0.0.1:9092"
+  topic_mapping:
+    social-forum: social-forum-dev

@@ -17,7 +17,7 @@
 | 配置管理 | Viper | `config` 包加载 YAML 并监听文件变化；`APP_NAME`、`ENV` 选择文件，入口独立读取 `PORT`，连接参数不提供环境变量覆盖，见 [配置说明](config/README.md) |
 | 类型转换 | [cast](https://github.com/spf13/cast) | 类型转换优先使用 `github.com/spf13/cast` |
 | 集合操作 | [lo](https://github.com/samber/lo) | 集合操作优先使用 `github.com/samber/lo` |
-| 日志 | Zap + Lumberjack | `pkg/log` 默认输出 JSON 到 stdout；独立实例支持文件输出与按大小轮转，完整配置由调用方传入，见 [使用说明](pkg/log/README.md) |
+| 日志 | Zap + Lumberjack | `pkg/log` 首次日志时创建默认实例，输出 JSON 到 stdout 与日志文件并按大小轮转；独立实例的完整配置由调用方传入，见 [使用说明](pkg/log/README.md) |
 | 错误处理 | 自定义错误 | 承载业务错误码、错误消息等信息，供接口层统一解析 |
 | 依赖注入 | Wire | 编译期依赖注入与依赖组装 |
 | API 文档生成 | Swaggo v1.16.6 | 从 Go 注释离线生成可导入的 Swagger 2.0 JSON/YAML，见 [生成说明](docs/swagger/README.md) |

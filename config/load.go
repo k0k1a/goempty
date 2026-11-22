@@ -22,7 +22,8 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("config: resolve path: %w", err)
 	}
-	v := viper.New()
+	// A dot can be part of a logical Kafka topic in kafka.topic_mapping.
+	v := viper.NewWithOptions(viper.KeyDelimiter("::"))
 	v.SetConfigFile(path)
 	v.SetConfigType("yaml")
 	if err := v.ReadInConfig(); err != nil {

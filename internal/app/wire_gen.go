@@ -45,6 +45,10 @@ func initialize(ctx context.Context, cfg config.Config) (*App, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	v, err := newMessagingConsumers()
+	if err != nil {
+		return nil, nil, err
+	}
 	appEventDependencies := &eventDependencies{
 		HelloService: helloService,
 	}
@@ -67,7 +71,7 @@ func initialize(ctx context.Context, cfg config.Config) (*App, func(), error) {
 		cleanup()
 		return nil, nil, err
 	}
-	app, err := newApp(server, scheduler, pool, bus, appEventDependencies, duration, gormDB, client, mongoClient)
+	app, err := newApp(server, scheduler, pool, bus, v, appEventDependencies, duration, gormDB, client, mongoClient)
 	if err != nil {
 		cleanup3()
 		cleanup2()

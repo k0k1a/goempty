@@ -8,6 +8,7 @@ import (
 	"goempty/pkg/async"
 	"goempty/pkg/db"
 	"goempty/pkg/httpserver"
+	"goempty/pkg/kafka"
 	"goempty/pkg/mongodb"
 	"goempty/pkg/redis"
 )
@@ -18,6 +19,7 @@ type Config struct {
 	MySQL           db.Config         `mapstructure:"mysql"`
 	Redis           redis.Config      `mapstructure:"redis"`
 	MongoDB         mongodb.Config    `mapstructure:"mongodb"`
+	Kafka           kafka.Config      `mapstructure:"kafka"`
 	HTTP            httpserver.Config `mapstructure:"-"`
 	ShutdownTimeout time.Duration     `mapstructure:"-"`
 }

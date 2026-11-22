@@ -6,14 +6,17 @@ import (
 	"go.uber.org/zap"
 )
 
-func loggerForContext(ctx context.Context) *zap.Logger {
-	logger := defaultLogger
-	if ctx != nil {
-		for _, key := range []string{"request_id", "trace_id"} {
-			if id, _ := ctx.Value(key).(string); id != "" {
-				logger = logger.With(zap.String(key, id))
-			}
-		}
+// withFields appends the request and trace IDs carried by ctx to fields.
+// Missing keys, empty values and non-string values are omitted.
+func withFields(ctx context.Context, fields ...zap.Field) []zap.Field {
+	if ctx == nil {
+		return fields
 	}
-	return logger
+	if id, _ := ctx.Value("request_id").(string); id != "" {
+		fields = append(fields, zap.String("request_id", id))
+	}
+	if id, _ := ctx.Value("trace_id").(string); id != "" {
+		fields = append(fields, zap.String("trace_id", id))
+	}
+	return fields
 }

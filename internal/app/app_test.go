@@ -31,7 +31,7 @@ func TestAppValidation(t *testing.T) {
 			t.Fatalf("newHTTPTestApp(%+v) succeeded", cfg)
 		}
 	}
-	if _, err := New(nil, nil, nil, nil, time.Second); err == nil {
+	if _, err := New(nil, nil, nil, nil, nil, time.Second); err == nil {
 		t.Fatal("New accepted nil server")
 	}
 }
@@ -275,7 +275,7 @@ func TestRunShutdown(t *testing.T) {
 				t.Fatal(err)
 			}
 			tasks, events := newTestTasks(t, async.Config{})
-			a, err := New(server, jobs, tasks, events, 250*time.Millisecond)
+			a, err := New(server, jobs, tasks, events, nil, 250*time.Millisecond)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -373,7 +373,7 @@ func newHTTPTestApp(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newApp(server, jobs, tasks, events, &eventDependencies{HelloService: helloService}, cfg.ShutdownTimeout, nil, nil, nil)
+	return newApp(server, jobs, tasks, events, nil, &eventDependencies{HelloService: helloService}, cfg.ShutdownTimeout, nil, nil, nil)
 }
 
 func newTestTasks(t *testing.T, cfg async.Config) (*async.Pool, *event.Bus) {

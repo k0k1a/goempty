@@ -27,18 +27,24 @@ type globalEntry struct {
 	TraceID      string  `json:"trace_id"`
 }
 
-func defaultLogEntries(t *testing.T, mode string) []globalEntry {
+func runDefaultLoggerProcess(t *testing.T, dir, mode string) (string, error) {
 	t.Helper()
-	// Each test gets a fresh default logger and shuts it down only after writing.
+	// Each test gets a fresh default logger initialized on first use.
 	cmd := exec.Command(os.Args[0], "-test.run=^TestDefaultLoggerProcess$")
-	cmd.Dir = t.TempDir()
+	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GOEMPTY_DEFAULT_LOG_TEST="+mode, "APP_NAME=", "ENV=", "LEVEL=")
 	output, err := cmd.CombinedOutput()
+	return string(output), err
+}
+
+func defaultLogEntries(t *testing.T, mode string) []globalEntry {
+	t.Helper()
+	output, err := runDefaultLoggerProcess(t, t.TempDir(), mode)
 	if err != nil {
 		t.Fatalf("default logger process: %v\n%s", err, output)
 	}
 	var entries []globalEntry
-	for _, line := range strings.Split(string(output), "\n") {
+	for _, line := range strings.Split(output, "\n") {
 		if !strings.HasPrefix(line, "{") {
 			continue
 		}
@@ -69,7 +75,7 @@ func TestDefaultLoggerEnvironment(t *testing.T) {
 			output, err := cmd.CombinedOutput()
 			if tc.wantFailure {
 				if err == nil || !strings.Contains(string(output), "log: invalid level") {
-					t.Fatalf("expected startup failure for invalid level: %v\n%s", err, output)
+					t.Fatalf("expected first-log failure for invalid level: %v\n%s", err, output)
 				}
 				return
 			}
@@ -111,6 +117,65 @@ func TestDefaultLoggerWithoutInitialization(t *testing.T) {
 	}
 }
 
+func TestDefaultLoggerLazyInitialization(t *testing.T) {
+	dir := t.TempDir()
+	output, err := runDefaultLoggerProcess(t, dir, "shutdown")
+	if err != nil {
+		t.Fatalf("default logger process: %v\n%s", err, output)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "logs")); !os.IsNotExist(err) {
+		t.Fatalf("logs directory created without logging: %v", err)
+	}
+	for _, line := range strings.Split(output, "\n") {
+		if strings.HasPrefix(line, "{") {
+			t.Fatalf("unexpected log entry: %s", line)
+		}
+	}
+}
+
+func TestDefaultLoggerShutdownStopsWriting(t *testing.T) {
+	dir := t.TempDir()
+	output, err := runDefaultLoggerProcess(t, dir, "write-after-shutdown")
+	if err != nil {
+		t.Fatalf("default logger process: %v\n%s", err, output)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "logs", "app_dev.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) != 1 || !strings.Contains(lines[0], `"msg":"before shutdown"`) {
+		t.Fatalf("log file changed after shutdown: %s", data)
+	}
+	if got := countJSONLines(output); got != 1 {
+		t.Fatalf("got %d stdout entries after shutdown, want 1: %s", got, output)
+	}
+}
+
+func TestDefaultLoggerZapAccessor(t *testing.T) {
+	entries := defaultLogEntries(t, "zap")
+	if len(entries) != 1 {
+		t.Fatalf("got %d entries, want one direct entry", len(entries))
+	}
+	entry := entries[0]
+	if entry.Level != "info" || entry.Message != "direct call" {
+		t.Fatalf("unexpected entry: %+v", entry)
+	}
+	if !strings.HasSuffix(entry.Caller, fmt.Sprintf("global_test.go:%d", entry.ExpectedLine)) {
+		t.Fatalf("zap caller = %s, expected line %d", entry.Caller, entry.ExpectedLine)
+	}
+}
+
+func countJSONLines(output string) int {
+	count := 0
+	for _, line := range strings.Split(output, "\n") {
+		if strings.HasPrefix(line, "{") {
+			count++
+		}
+	}
+	return count
+}
+
 func TestConcurrentDefaultLogging(t *testing.T) {
 	entries := defaultLogEntries(t, "concurrent")
 	seen := make(map[string]bool)
@@ -148,6 +213,25 @@ func TestDefaultLoggerProcess(t *testing.T) {
 			})
 		}
 		group.Wait()
+	case "shutdown":
+		// Never logs; Shutdown must not create outputs.
+		if err := applog.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+	case "write-after-shutdown":
+		applog.Info(context.Background(), "before shutdown")
+		if err := applog.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		applog.Info(context.Background(), "after shutdown")
+		applog.Error(context.Background(), "after shutdown")
+	case "zap":
+		_, _, line, _ := runtime.Caller(0)
+		applog.Zap().Info("direct call", zap.Int("expected_line", line+1))
+		if err := applog.Shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		applog.Zap().Info("after shutdown")
 	case "request-id":
 		parent := context.Background()
 		ctx := context.WithValue(parent, "request_id", "request-1")

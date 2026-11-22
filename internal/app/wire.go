@@ -32,6 +32,7 @@ func initialize(ctx context.Context, cfg config.Config) (*App, func(), error) {
 		wire.Struct(new(jobDependencies), "*"),
 		newScheduler,
 		wire.Struct(new(eventDependencies), "*"),
+		newMessagingConsumers,
 		newApp,
 	)
 	return nil, nil, nil

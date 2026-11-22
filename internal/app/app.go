@@ -5,12 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
 	"goempty/pkg/async"
 	"goempty/pkg/event"
 	"goempty/pkg/httpserver"
+	"goempty/pkg/kafka"
 	"goempty/pkg/log"
 	"goempty/pkg/scheduler"
 
@@ -29,6 +31,7 @@ type App struct {
 	scheduler       *scheduler.Scheduler
 	taskPool        *async.Pool
 	eventBus        *event.Bus
+	consumers       []*kafka.Consumer
 	shutdownTimeout time.Duration
 	cleanup         func()
 	lifecycleMu     sync.Mutex
@@ -38,7 +41,7 @@ type App struct {
 }
 
 // New assembles an App without starting goroutines or opening listeners.
-func New(server *httpserver.Server, jobs *scheduler.Scheduler, taskPool *async.Pool, eventBus *event.Bus, shutdownTimeout time.Duration) (*App, error) {
+func New(server *httpserver.Server, jobs *scheduler.Scheduler, taskPool *async.Pool, eventBus *event.Bus, consumers []*kafka.Consumer, shutdownTimeout time.Duration) (*App, error) {
 	if server == nil {
 		return nil, errors.New("app: HTTP server is required")
 	}
@@ -51,7 +54,19 @@ func New(server *httpserver.Server, jobs *scheduler.Scheduler, taskPool *async.P
 	if taskPool == nil || eventBus == nil {
 		return nil, errors.New("app: task pool and event bus are required")
 	}
-	return &App{httpServer: server, scheduler: jobs, taskPool: taskPool, eventBus: eventBus, shutdownTimeout: shutdownTimeout}, nil
+	for _, consumer := range consumers {
+		if consumer == nil {
+			return nil, errors.New("app: kafka consumer is required")
+		}
+	}
+	return &App{
+		httpServer:      server,
+		scheduler:       jobs,
+		taskPool:        taskPool,
+		eventBus:        eventBus,
+		consumers:       slices.Clone(consumers),
+		shutdownTimeout: shutdownTimeout,
+	}, nil
 }
 
 // Run serves until ctx is canceled or the HTTP server exits. Cancellation is a
@@ -101,8 +116,21 @@ func (a *App) start(ctx context.Context) (<-chan error, error) {
 	if err := a.scheduler.Start(ctx); err != nil {
 		return nil, fmt.Errorf("app: start scheduler: %w", err)
 	}
-	done := make(chan error, 1)
+	for _, consumer := range a.consumers {
+		if err := consumer.Start(ctx); err != nil {
+			return nil, fmt.Errorf("app: start kafka consumer: %w", err)
+		}
+	}
+	done := make(chan error, 1+len(a.consumers))
 	go func() { done <- a.httpServer.Start() }()
+	for _, consumer := range a.consumers {
+		go func() {
+			<-consumer.Done()
+			if err := consumer.Err(); err != nil {
+				done <- fmt.Errorf("app: kafka consumer: %w", err)
+			}
+		}()
+	}
 	return done, nil
 }
 
@@ -124,10 +152,18 @@ func (a *App) Shutdown(ctx context.Context) error {
 		go func() { jobsDone <- a.scheduler.Stop(shutdownCtx) }()
 		tasksDone := make(chan error, 1)
 		go func() { tasksDone <- a.taskPool.Stop(shutdownCtx) }()
+		consumersDone := make(chan error, len(a.consumers))
+		for _, consumer := range a.consumers {
+			go func() { consumersDone <- consumer.Stop(shutdownCtx) }()
+		}
 		stopErr := a.httpServer.Stop(shutdownCtx)
 		jobsErr := <-jobsDone
 		tasksErr := <-tasksDone
-		a.shutdownErr = errors.Join(stopErr, jobsErr, tasksErr)
+		var consumersErr error
+		for range a.consumers {
+			consumersErr = errors.Join(consumersErr, <-consumersDone)
+		}
+		a.shutdownErr = errors.Join(stopErr, jobsErr, tasksErr, consumersErr)
 		if a.cleanup != nil {
 			a.cleanup()
 		}
