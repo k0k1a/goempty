@@ -102,6 +102,21 @@ mongodb:
 
 MongoDB 连接配置变更需重启，不自动创建业务集合或索引；`/hello`、`/healthz`、`/readyz` 不读写或探测 MongoDB。
 
+## Kafka
+
+`kafka` 段是生产者配置，运行应用前必须填写；`brokers` 为空时启动失败。`topic_mapping` 把代码中的逻辑 topic 映射为实际 topic，缺失时回退为逻辑名。
+
+```yaml
+kafka:
+  brokers:
+    - "127.0.0.1:9092"
+  topic_mapping:
+    social-forum: social-forum-dev
+    hello: hello-dev
+```
+
+`kafka_consumer` 是独立的消费者配置，内容为单个 `ConsumerConfig`；为空对象时不创建消费者。生产者和消费者互不依赖，各自读取自己的 broker 与映射。连接参数和 topic 映射在构造期读取，修改后需重启；配置错误由 Kafka 在运行期报告。详见 [Kafka](../pkg/kafka/README.md)。
+
 ## 动态加载
 
 入口启动时调用一次 `Load()`，首次加载失败时启动失败。随后通过 Viper 的 `WatchConfig()` 和 `OnConfigChange()` 监听选中的文件。Viper 尝试重新读取文件后执行回调，回调直接调用同一实例的 `v.UnmarshalExact()`；反序列化成功后整体替换内存配置，失败则记录错误并保留旧值，不重启应用。

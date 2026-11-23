@@ -364,7 +364,7 @@ func newHTTPTestApp(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	helloService := service.NewHelloService(db.NewHelloRepo(), events)
+	helloService := service.NewHelloService(db.NewHelloRepo(), events, unexpectedHelloMessagePublisher{})
 	server, err := newHTTPServer(cfg.HTTP, &httpDependencies{HelloService: helloService})
 	if err != nil {
 		return nil, err
@@ -508,8 +508,14 @@ func (unexpectedHelloPublisher) Publish(context.Context, event.Event) error {
 	panic("HTTP Hello must not publish events")
 }
 
+type unexpectedHelloMessagePublisher struct{}
+
+func (unexpectedHelloMessagePublisher) PublishGreeting(context.Context, entity.HelloGreetingMessage) error {
+	panic("this Hello service must not publish Kafka messages")
+}
+
 func newTestHelloService(repo db.HelloRepository) *service.HelloService {
-	return service.NewHelloService(repo, unexpectedHelloPublisher{})
+	return service.NewHelloService(repo, unexpectedHelloPublisher{}, unexpectedHelloMessagePublisher{})
 }
 
 func TestHelloJobEventFlow(t *testing.T) {
@@ -525,7 +531,7 @@ func TestHelloJobEventFlow(t *testing.T) {
 		}
 	})
 
-	helloService := service.NewHelloService(db.NewHelloRepo(), a.eventBus)
+	helloService := service.NewHelloService(db.NewHelloRepo(), a.eventBus, unexpectedHelloMessagePublisher{})
 	if err := a.scheduler.Register(job.NewHelloJob(helloService)); err == nil {
 		t.Fatal("Hello Job was not registered during assembly")
 	}

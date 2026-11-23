@@ -1,12 +1,17 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"goempty/internal/entity"
 	"goempty/internal/repo/db"
+	"goempty/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -58,6 +63,82 @@ func TestHTTPHelloRoute(t *testing.T) {
 		if response.Code != http.StatusBadRequest {
 			t.Errorf("GET %s status = %d, want %d", path, response.Code, http.StatusBadRequest)
 		}
+	}
+}
+
+type helloMessagePublisherStub struct {
+	messages []entity.HelloGreetingMessage
+	err      error
+}
+
+func (p *helloMessagePublisherStub) PublishGreeting(_ context.Context, message entity.HelloGreetingMessage) error {
+	p.messages = append(p.messages, message)
+	return p.err
+}
+
+func TestHTTPHelloMessageRoute(t *testing.T) {
+	publisher := &helloMessagePublisherStub{}
+	handler := newHTTPHandler(&httpDependencies{
+		HelloService: service.NewHelloService(helloRepoStub{message: "repo greeting"}, unexpectedHelloPublisher{}, publisher),
+	})
+	post := func(body string) *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/hello/message", strings.NewReader(body)))
+		return recorder
+	}
+
+	response := post(`{"message":"from request"}`)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d: %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	var body struct {
+		Code int `json:"code"`
+		Data struct {
+			Message string `json:"message"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Code != 0 || body.Data.Message != "from request" {
+		t.Fatalf("body = %s", response.Body.String())
+	}
+	if len(publisher.messages) != 1 || publisher.messages[0].Message != "from request" {
+		t.Fatalf("published messages = %#v", publisher.messages)
+	}
+
+	for _, invalid := range []string{`{}`, `{"message":""}`, `not json`} {
+		response := post(invalid)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("status for %q = %d, want %d", invalid, response.Code, http.StatusBadRequest)
+		}
+		var body struct {
+			Code int `json:"code"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		if body.Code != entity.ErrInvalidArgument.Code {
+			t.Fatalf("code for %q = %d, want %d", invalid, body.Code, entity.ErrInvalidArgument.Code)
+		}
+	}
+	if len(publisher.messages) != 1 {
+		t.Fatalf("invalid requests published %#v", publisher.messages)
+	}
+
+	publisher.err = errors.New("kafka unavailable")
+	response = post(`{"message":"fails"}`)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("publish failure status = %d, want %d", response.Code, http.StatusBadRequest)
+	}
+	var failure struct {
+		Code int `json:"code"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &failure); err != nil {
+		t.Fatal(err)
+	}
+	if failure.Code != -1 {
+		t.Fatalf("publish failure code = %d, want -1", failure.Code)
 	}
 }
 

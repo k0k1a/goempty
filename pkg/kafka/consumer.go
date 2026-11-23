@@ -24,12 +24,6 @@ const (
 	maxRetryBackoff     = 30 * time.Second
 )
 
-// Handler processes one event. Return nil to commit the record and continue.
-// Return an error to retry the same record after a backoff; after MaxAttempts
-// the record is logged and skipped. Dispatch by EventType and respond to
-// cancellation promptly.
-type Handler func(ctx context.Context, event MessageRawData) error
-
 // Consumer runs one consumer group in a single goroutine. Create it with
 // NewConsumer, call Start once, and call Stop to shut it down. A stopped
 // consumer cannot be restarted.
@@ -280,7 +274,7 @@ func (c *Consumer) callHandler(ctx context.Context, event MessageRawData) (err e
 			err = fmt.Errorf("kafka: handler panic: %v", recovered)
 		}
 	}()
-	return c.handler(ctx, event)
+	return c.handler.Handle(ctx, event)
 }
 
 // backoffFor returns the wait after the given failed attempt: the configured

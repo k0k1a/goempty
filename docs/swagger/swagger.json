@@ -64,6 +64,57 @@
                 }
             }
         },
+        "/hello/message": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "hello"
+                ],
+                "summary": "Publish a hello message",
+                "parameters": [
+                    {
+                        "description": "Greeting message",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/entity.HelloGreetingMessage"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Message published successfully; code is 0",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response-entity_HelloResponse"
+                        },
+                        "headers": {
+                            "X-Request-ID": {
+                                "type": "string",
+                                "description": "Request ID"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request or publish failure",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response-any"
+                        },
+                        "headers": {
+                            "X-Request-ID": {
+                                "type": "string",
+                                "description": "Request ID"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/readyz": {
             "get": {
                 "description": "Returns 200 with an empty body; does not check MySQL or Redis connectivity.",
@@ -86,6 +137,17 @@
         }
     },
     "definitions": {
+        "entity.HelloGreetingMessage": {
+            "type": "object",
+            "required": [
+                "message"
+            ],
+            "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
         "entity.HelloResponse": {
             "type": "object",
             "properties": {

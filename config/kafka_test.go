@@ -1,6 +1,10 @@
 package config
 
-import "testing"
+import (
+	"slices"
+	"testing"
+	"time"
+)
 
 func TestLoadKafkaConfiguration(t *testing.T) {
 	setupConfig(t, "app_dev.yaml", `kafka:
@@ -18,5 +22,32 @@ func TestLoadKafkaConfiguration(t *testing.T) {
 		cfg.Kafka.TopicMapping["social-forum"] != "social-forum-dev" ||
 		cfg.Kafka.TopicMapping["forum.events"] != "Forum.Events.Dev" {
 		t.Fatalf("Kafka = %+v", cfg.Kafka)
+	}
+}
+
+func TestLoadKafkaConsumerConfiguration(t *testing.T) {
+	setupConfig(t, "app_dev.yaml", `kafka_consumer:
+  brokers:
+    - 127.0.0.1:9092
+  group_name: goempty-hello
+  topics:
+    - hello
+  topic_mapping:
+    hello: hello-dev
+  max_attempts: 5
+  retry_backoff: 2s
+`)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	consumerCfg := cfg.KafkaConsumer
+	if len(consumerCfg.Brokers) != 1 || consumerCfg.Brokers[0] != "127.0.0.1:9092" ||
+		consumerCfg.GroupName != "goempty-hello" ||
+		!slices.Equal(consumerCfg.Topics, []string{"hello"}) ||
+		consumerCfg.TopicMapping["hello"] != "hello-dev" ||
+		consumerCfg.MaxAttempts != 5 ||
+		consumerCfg.RetryBackoff != 2*time.Second {
+		t.Fatalf("consumer config = %+v", consumerCfg)
 	}
 }

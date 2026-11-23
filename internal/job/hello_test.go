@@ -27,10 +27,16 @@ func (p *greetingPublisher) Publish(_ context.Context, e event.Event) error {
 	return p.err
 }
 
+type greetingMessagePublisher struct{}
+
+func (*greetingMessagePublisher) PublishGreeting(context.Context, entity.HelloGreetingMessage) error {
+	panic("Hello Job must use the in-process event publisher")
+}
+
 func TestHelloJobPublishesGreeting(t *testing.T) {
 	repo := &helloRepo{}
 	publisher := &greetingPublisher{}
-	job := NewHelloJob(service.NewHelloService(repo, publisher))
+	job := NewHelloJob(service.NewHelloService(repo, publisher, &greetingMessagePublisher{}))
 	if err := job.Run(t.Context()); err != nil {
 		t.Fatal(err)
 	}

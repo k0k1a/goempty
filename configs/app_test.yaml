@@ -6,3 +6,5 @@ async:
 kafka:
   brokers: []
   topic_mapping: {}
+
+kafka_consumer: {}

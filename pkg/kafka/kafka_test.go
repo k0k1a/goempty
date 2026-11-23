@@ -62,7 +62,7 @@ func TestPublishRecord(t *testing.T) {
 	}
 	decoded, err := decodeEvent(record.Value)
 	if err != nil || decoded.EventID != event.EventID || decoded.EventType != event.EventType ||
-		!reflect.DeepEqual(decoded.Data, map[string]any{"post_id": float64(123)}) {
+		!bytes.Equal(decoded.rawData, []byte(`{"post_id":123}`)) {
 		t.Fatalf("decoded = %+v, error = %v", decoded, err)
 	}
 }
@@ -75,7 +75,7 @@ func TestInvalidEventAndUnknownTopics(t *testing.T) {
 	c, err := NewConsumer(ConsumerConfig{
 		Brokers: cfg.Brokers, GroupName: "forum", Topics: []string{"missing"},
 		TopicMapping: map[string]string{"missing": "forum-missing"},
-	}, noopHandler)
+	}, HandlerFunc(noopHandler))
 	if err != nil || !reflect.DeepEqual(c.actualTopics(), []string{"forum-missing"}) {
 		t.Fatalf("mapped topic = %v, error = %v", c.actualTopics(), err)
 	}
@@ -104,6 +104,12 @@ func TestInvalidEventAndUnknownTopics(t *testing.T) {
 	}
 	if _, err := decodeEvent([]byte(`{"_event_id":"1","_event_source":"app","_event_type":"created","_event_time":"2026-11-20T08:00:00Z","data":{}}`)); err != nil {
 		t.Fatalf("valid event was rejected: %v", err)
+	}
+	if _, err := decodeEvent([]byte(`{"_event_id":"1","_event_source":"app","_event_type":"created","_event_time":"2026-11-20T08:00:00Z"}`)); err == nil {
+		t.Fatal("event without data was accepted")
+	}
+	if _, err := decodeEvent([]byte(`{"_event_id":"1","_event_source":"app","_event_type":"created","_event_time":"2026-11-20T08:00:00Z","data":null}`)); err == nil {
+		t.Fatal("event with null data was accepted")
 	}
 }
 
@@ -137,7 +143,7 @@ func TestTopicMappingResolution(t *testing.T) {
 	c, err := NewConsumer(ConsumerConfig{
 		Brokers: cfg.Brokers, GroupName: "forum", Topics: []string{topic},
 		TopicMapping: cfg.TopicMapping,
-	}, noopHandler)
+	}, HandlerFunc(noopHandler))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +169,7 @@ func TestNewConsumerValidation(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			consumerCfg.Brokers = cfg.Brokers
-			if _, err := NewConsumer(consumerCfg, noopHandler); err == nil {
+			if _, err := NewConsumer(consumerCfg, HandlerFunc(noopHandler)); err == nil {
 				t.Fatal("invalid consumer configuration succeeded")
 			}
 		})
@@ -175,7 +181,7 @@ func TestNewConsumerValidation(t *testing.T) {
 	}
 	if _, err := NewConsumer(ConsumerConfig{
 		GroupName: "forum", Topics: []string{"social-forum"},
-	}, noopHandler); err == nil {
+	}, HandlerFunc(noopHandler)); err == nil {
 		t.Fatal("missing brokers succeeded")
 	}
 }
@@ -189,7 +195,7 @@ func TestConsumerTopicMapping(t *testing.T) {
 			"social-forum": "forum-override",
 			"audit":        "audit-shared",
 		},
-	}, noopHandler)
+	}, HandlerFunc(noopHandler))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +215,7 @@ func TestConsumerLifecycle(t *testing.T) {
 		c, err := NewConsumer(ConsumerConfig{
 			Brokers: cfg.Brokers, GroupName: "forum", Topics: []string{"social-forum"},
 			TopicMapping: cfg.TopicMapping,
-		}, noopHandler)
+		}, HandlerFunc(noopHandler))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -259,7 +265,7 @@ func TestConsumerLifecycle(t *testing.T) {
 }
 
 func TestConsumerRetryDefaults(t *testing.T) {
-	c := newTestConsumer(t, ConsumerConfig{}, noopHandler)
+	c := newTestConsumer(t, ConsumerConfig{}, HandlerFunc(noopHandler))
 	if c.maxAttempts != defaultMaxAttempts || c.retryBackoff != defaultRetryBackoff {
 		t.Fatalf("defaults = %d/%v", c.maxAttempts, c.retryBackoff)
 	}
@@ -272,13 +278,13 @@ func TestConsumerRetryDefaults(t *testing.T) {
 func TestConsumerRetriesUntilSuccess(t *testing.T) {
 	var attempts int
 	c := newTestConsumer(t, ConsumerConfig{MaxAttempts: 3, RetryBackoff: time.Millisecond},
-		func(context.Context, MessageRawData) error {
+		HandlerFunc(func(context.Context, MessageRawData) error {
 			attempts++
 			if attempts < 3 {
 				return errors.New("transient")
 			}
 			return nil
-		})
+		}))
 	if !c.processRecord(t.Context(), testRecord(testEvent())) {
 		t.Fatal("record was not completed")
 	}
@@ -290,10 +296,10 @@ func TestConsumerRetriesUntilSuccess(t *testing.T) {
 func TestConsumerSkipsAfterAttempts(t *testing.T) {
 	var attempts int
 	c := newTestConsumer(t, ConsumerConfig{MaxAttempts: 2, RetryBackoff: time.Millisecond},
-		func(context.Context, MessageRawData) error {
+		HandlerFunc(func(context.Context, MessageRawData) error {
 			attempts++
 			return errors.New("permanent")
-		})
+		}))
 	if !c.processRecord(t.Context(), testRecord(testEvent())) {
 		t.Fatal("record was not completed")
 	}
@@ -305,10 +311,10 @@ func TestConsumerSkipsAfterAttempts(t *testing.T) {
 func TestConsumerRecoversHandlerPanic(t *testing.T) {
 	var attempts int
 	c := newTestConsumer(t, ConsumerConfig{MaxAttempts: 2, RetryBackoff: time.Millisecond},
-		func(context.Context, MessageRawData) error {
+		HandlerFunc(func(context.Context, MessageRawData) error {
 			attempts++
 			panic("boom")
-		})
+		}))
 	if !c.processRecord(t.Context(), testRecord(testEvent())) {
 		t.Fatal("record was not completed")
 	}
@@ -319,10 +325,10 @@ func TestConsumerRecoversHandlerPanic(t *testing.T) {
 
 func TestConsumerSkipsMalformedRecord(t *testing.T) {
 	called := false
-	c := newTestConsumer(t, ConsumerConfig{}, func(context.Context, MessageRawData) error {
+	c := newTestConsumer(t, ConsumerConfig{}, HandlerFunc(func(context.Context, MessageRawData) error {
 		called = true
 		return nil
-	})
+	}))
 	record := &kgo.Record{Topic: "forum-test", Value: []byte("{")}
 	if !c.processRecord(t.Context(), record) {
 		t.Fatal("malformed record was not completed")
@@ -337,11 +343,11 @@ func TestConsumerRetryStopsOnShutdown(t *testing.T) {
 	defer cancel()
 	var attempts int
 	c := newTestConsumer(t, ConsumerConfig{MaxAttempts: 5, RetryBackoff: time.Hour},
-		func(context.Context, MessageRawData) error {
+		HandlerFunc(func(context.Context, MessageRawData) error {
 			attempts++
 			cancel()
 			return errors.New("failed")
-		})
+		}))
 	if c.processRecord(ctx, testRecord(testEvent())) {
 		t.Fatal("interrupted record was committed")
 	}
@@ -373,10 +379,10 @@ func testRecord(event MessageRawData) *kgo.Record {
 
 func TestConsumerPopulatesRecordMetadata(t *testing.T) {
 	var got MessageRawData
-	c := newTestConsumer(t, ConsumerConfig{}, func(_ context.Context, event MessageRawData) error {
+	c := newTestConsumer(t, ConsumerConfig{}, HandlerFunc(func(_ context.Context, event MessageRawData) error {
 		got = event
 		return nil
-	})
+	}))
 	record := testRecord(testEvent())
 	if !c.processRecord(t.Context(), record) {
 		t.Fatal("record was not completed")
@@ -406,5 +412,219 @@ func TestMessageMetadataIsNotSerialized(t *testing.T) {
 		if _, exists := fields[key]; exists {
 			t.Fatalf("field %q was serialized: %s", key, value)
 		}
+	}
+}
+
+// recordingHandler captures the events and decoded data a router passes to a
+// typed handler. Handler invocations are serialized by the consumer loop, so
+// no locking is needed.
+type recordingHandler[Data any] struct {
+	name   string
+	err    error
+	events []MessageRawData
+	data   []Data
+}
+
+func (h *recordingHandler[Data]) Name() string { return h.name }
+
+func (h *recordingHandler[Data]) Handle(_ context.Context, event MessageRawData, data Data) error {
+	h.events = append(h.events, event)
+	h.data = append(h.data, data)
+	return h.err
+}
+
+func TestRouterDispatchesByEventType(t *testing.T) {
+	created := &recordingHandler[struct {
+		PostID int `json:"post_id"`
+	}]{name: "created"}
+	edited := &recordingHandler[string]{name: "edited"}
+	router := NewRouter()
+	if err := Subscribe(router, "social-forum", "forum.post.created", created); err != nil {
+		t.Fatal(err)
+	}
+	if err := Subscribe(router, "social-forum", "forum.post.edited", edited); err != nil {
+		t.Fatal(err)
+	}
+	c := newTestConsumer(t, ConsumerConfig{}, router)
+
+	if !c.processRecord(t.Context(), testRecord(testEvent())) {
+		t.Fatal("record was not completed")
+	}
+	if len(created.data) != 1 || created.data[0].PostID != 123 {
+		t.Fatalf("created data = %+v", created.data)
+	}
+	if len(created.events) != 1 || created.events[0].Topic != "social-forum" {
+		t.Fatalf("created event = %+v", created.events)
+	}
+	if len(edited.data) != 0 {
+		t.Fatalf("edited handler was called: %+v", edited.data)
+	}
+}
+
+func TestRouterSkipsUnregisteredEventType(t *testing.T) {
+	created := &recordingHandler[json.RawMessage]{name: "created"}
+	router := NewRouter()
+	if err := Subscribe(router, "social-forum", "forum.post.created", created); err != nil {
+		t.Fatal(err)
+	}
+	c := newTestConsumer(t, ConsumerConfig{}, router)
+
+	event := testEvent()
+	event.EventType = "forum.post.unknown"
+	if !c.processRecord(t.Context(), testRecord(event)) {
+		t.Fatal("record was not completed")
+	}
+	if len(created.data) != 0 {
+		t.Fatal("handler was called for an unregistered event type")
+	}
+}
+
+func TestRouterSkipsMismatchedData(t *testing.T) {
+	created := &recordingHandler[struct {
+		PostID int `json:"post_id"`
+	}]{name: "created"}
+	router := NewRouter()
+	if err := Subscribe(router, "social-forum", "forum.post.created", created); err != nil {
+		t.Fatal(err)
+	}
+	c := newTestConsumer(t, ConsumerConfig{}, router)
+
+	event := testEvent()
+	event.Data = "not-an-object"
+	if !c.processRecord(t.Context(), testRecord(event)) {
+		t.Fatal("record was not completed")
+	}
+	if len(created.data) != 0 {
+		t.Fatal("handler was called for mismatched data")
+	}
+}
+
+func TestRouterRetriesHandlerErrors(t *testing.T) {
+	created := &recordingHandler[struct {
+		PostID int `json:"post_id"`
+	}]{name: "created", err: errors.New("permanent")}
+	router := NewRouter()
+	if err := Subscribe(router, "social-forum", "forum.post.created", created); err != nil {
+		t.Fatal(err)
+	}
+	c := newTestConsumer(t, ConsumerConfig{MaxAttempts: 2, RetryBackoff: time.Millisecond}, router)
+
+	if !c.processRecord(t.Context(), testRecord(testEvent())) {
+		t.Fatal("record was not completed")
+	}
+	if len(created.data) != 2 {
+		t.Fatalf("attempts = %d, want 2", len(created.data))
+	}
+}
+
+func TestSubscribeValidation(t *testing.T) {
+	router := NewRouter()
+	created := &recordingHandler[struct {
+		PostID int `json:"post_id"`
+	}]{name: "created"}
+	if err := Subscribe(nil, "social-forum", "forum.post.created", created); err == nil {
+		t.Fatal("nil router succeeded")
+	}
+	if err := Subscribe(router, "", "forum.post.created", created); err == nil {
+		t.Fatal("empty topic succeeded")
+	}
+	if err := Subscribe(router, " social-forum", "forum.post.created", created); err == nil {
+		t.Fatal("padded topic succeeded")
+	}
+	if err := Subscribe(router, "social-forum", "", created); err == nil {
+		t.Fatal("empty event type succeeded")
+	}
+	if err := Subscribe(router, "social-forum", " forum.post.created", created); err == nil {
+		t.Fatal("padded event type succeeded")
+	}
+	if err := Subscribe[struct{ PostID int }](router, "social-forum", "forum.post.created", nil); err == nil {
+		t.Fatal("nil handler succeeded")
+	}
+	if err := Subscribe(router, "social-forum", "forum.post.created", &recordingHandler[struct{ PostID int }]{name: " "}); err == nil {
+		t.Fatal("blank handler name succeeded")
+	}
+	if err := Subscribe(router, "social-forum", "forum.post.created", created); err != nil {
+		t.Fatal(err)
+	}
+	err := Subscribe(router, "social-forum", "forum.post.created", &recordingHandler[struct{ PostID int }]{name: "other"})
+	if err == nil || !errors.Is(err, ErrDuplicateRoute) {
+		t.Fatalf("duplicate route = %v", err)
+	}
+	if err := Subscribe(router, "audit", "forum.post.created", &recordingHandler[struct{ PostID int }]{name: "audit"}); err != nil {
+		t.Fatalf("same event type on another topic failed: %v", err)
+	}
+}
+
+func newTwoTopicConsumer(t *testing.T, handler Handler) *Consumer {
+	t.Helper()
+	c, err := NewConsumer(ConsumerConfig{
+		Brokers:   []string{"127.0.0.1:1"},
+		GroupName: "forum",
+		Topics:    []string{"social-forum", "audit"},
+		TopicMapping: map[string]string{
+			"social-forum": "forum-test",
+			"audit":        "audit-shared",
+		},
+	}, handler)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+func TestRouterDispatchesByTopicAndEventType(t *testing.T) {
+	social := &recordingHandler[struct {
+		PostID int `json:"post_id"`
+	}]{name: "social"}
+	audit := &recordingHandler[string]{name: "audit"}
+	router := NewRouter()
+	if err := Subscribe(router, "social-forum", "forum.post.created", social); err != nil {
+		t.Fatal(err)
+	}
+	if err := Subscribe(router, "audit", "forum.post.created", audit); err != nil {
+		t.Fatal(err)
+	}
+	c := newTwoTopicConsumer(t, router)
+
+	socialRecord := testRecord(testEvent())
+	if !c.processRecord(t.Context(), socialRecord) {
+		t.Fatal("social record was not completed")
+	}
+	if len(social.data) != 1 || social.data[0].PostID != 123 {
+		t.Fatalf("social data = %+v", social.data)
+	}
+
+	auditEvent := testEvent()
+	auditEvent.Data = "audited"
+	auditRecord := testRecord(auditEvent)
+	auditRecord.Topic = "audit-shared"
+	if !c.processRecord(t.Context(), auditRecord) {
+		t.Fatal("audit record was not completed")
+	}
+	if len(audit.data) != 1 || audit.data[0] != "audited" {
+		t.Fatalf("audit data = %v", audit.data)
+	}
+	if len(social.data) != 1 {
+		t.Fatalf("social handler was called for the audit topic: %+v", social.data)
+	}
+}
+
+func TestRouterSkipsUnregisteredTopicCombination(t *testing.T) {
+	social := &recordingHandler[struct {
+		PostID int `json:"post_id"`
+	}]{name: "social"}
+	router := NewRouter()
+	if err := Subscribe(router, "social-forum", "forum.post.created", social); err != nil {
+		t.Fatal(err)
+	}
+	c := newTwoTopicConsumer(t, router)
+
+	auditRecord := testRecord(testEvent())
+	auditRecord.Topic = "audit-shared"
+	if !c.processRecord(t.Context(), auditRecord) {
+		t.Fatal("record was not completed")
+	}
+	if len(social.data) != 0 {
+		t.Fatal("handler was called for an unregistered topic combination")
 	}
 }

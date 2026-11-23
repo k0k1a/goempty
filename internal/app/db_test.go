@@ -11,6 +11,7 @@ import (
 	"goempty/config"
 	"goempty/pkg/db"
 	"goempty/pkg/httpserver"
+	"goempty/pkg/kafka"
 	"goempty/pkg/mongodb"
 	"goempty/pkg/redis"
 
@@ -42,6 +43,7 @@ func TestInitializeDatabaseUnavailable(t *testing.T) {
 	}()
 	cfg := config.Config{
 		MySQL: testDatabaseConfig(),
+		Kafka: kafka.Config{Brokers: []string{"127.0.0.1:1"}},
 		HTTP:  httpserver.Config{Addr: "127.0.0.1:0"}, ShutdownTimeout: time.Second,
 	}
 	cfg.MySQL.DSN = "local@tcp(" + listener.Addr().String() + ")/goempty?parseTime=true&timeout=1s&readTimeout=1s&writeTimeout=1s"
@@ -87,6 +89,7 @@ func TestInitializeMySQLLifecycle(t *testing.T) {
 		Redis: redis.Config{Addr: redisAddr,
 			Username: os.Getenv("GOEMPTY_TEST_REDIS_USERNAME"), Password: os.Getenv("GOEMPTY_TEST_REDIS_PASSWORD")},
 		MongoDB:         mongodb.Config{URI: mongoURI, ConnectTimeout: time.Second, ServerSelectionTimeout: 3 * time.Second},
+		Kafka:           kafka.Config{Brokers: []string{"127.0.0.1:1"}},
 		HTTP:            httpserver.Config{Addr: "127.0.0.1:0"},
 		ShutdownTimeout: time.Second,
 	}

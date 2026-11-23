@@ -1,10 +1,31 @@
 package app
 
-import "goempty/pkg/kafka"
+import (
+	"goempty/internal/consumer"
+	"goempty/internal/entity"
+	"goempty/internal/service"
+	"goempty/pkg/kafka"
+)
 
-// newMessagingConsumers creates the Kafka consumers owned by App. The template
-// registers none; add one kafka.NewConsumer call per consumer entry and extend
-// this function with the services and configuration they need.
-func newMessagingConsumers() ([]*kafka.Consumer, error) {
-	return nil, nil
+type messagingDependencies struct {
+	HelloService *service.HelloService
+}
+
+// newMessagingConsumers creates the Kafka consumer owned by App from the
+// kafka_consumer configuration. An empty configuration means the app runs
+// without a Kafka consumer.
+func newMessagingConsumers(consumerCfg kafka.ConsumerConfig, deps *messagingDependencies) ([]*kafka.Consumer, error) {
+	if consumerCfg.Brokers == nil && consumerCfg.GroupName == "" {
+		return nil, nil
+	}
+	router := kafka.NewRouter()
+	hello := consumer.NewHelloGreetingConsumer(deps.HelloService)
+	if err := kafka.Subscribe(router, entity.HelloTopic, entity.HelloGreetingMQ, hello); err != nil {
+		return nil, err
+	}
+	kafkaConsumer, err := kafka.NewConsumer(consumerCfg, router)
+	if err != nil {
+		return nil, err
+	}
+	return []*kafka.Consumer{kafkaConsumer}, nil
 }

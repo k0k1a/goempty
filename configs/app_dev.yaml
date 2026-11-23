@@ -36,3 +36,13 @@ kafka:
     - "127.0.0.1:9092"
   topic_mapping:
     social-forum: social-forum-dev
+    hello: hello-dev
+
+kafka_consumer:
+  brokers:
+    - "127.0.0.1:9092"
+  group_name: goempty-hello
+  topics:
+    - hello
+  topic_mapping:
+    hello: hello-dev

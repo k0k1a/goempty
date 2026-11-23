@@ -15,6 +15,22 @@ import (
 	"github.com/twmb/franz-go/pkg/kmsg"
 )
 
+// postEventData is the typed payload the router decodes for post events.
+type postEventData struct {
+	PostID int `json:"post_id"`
+}
+
+// postEventHandler adapts a typed callback to kafka.TypedHandler.
+type postEventHandler struct {
+	onEvent func(event kafka.MessageRawData, data postEventData) error
+}
+
+func (*postEventHandler) Name() string { return "postEvent" }
+
+func (h *postEventHandler) Handle(_ context.Context, event kafka.MessageRawData, data postEventData) error {
+	return h.onEvent(event, data)
+}
+
 // TestKafkaLifecycle uses a fresh topic and consumer group on an isolated broker.
 func TestKafkaLifecycle(t *testing.T) {
 	addrs := os.Getenv("GOEMPTY_TEST_KAFKA_BROKERS")
@@ -88,15 +104,29 @@ func TestKafkaLifecycle(t *testing.T) {
 		return consumer.Err()
 	}
 
+	// newRouter registers typed topic routes for both event types on a fresh router.
+	newRouter := func(onEvent func(kafka.MessageRawData, postEventData) error) *kafka.Router {
+		router := kafka.NewRouter()
+		for _, eventType := range []string{"forum.post.created", "forum.post.edited"} {
+			if err := kafka.Subscribe(router, logicalTopic, eventType, &postEventHandler{onEvent: onEvent}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return router
+	}
+
 	handlerErr := errors.New("handler failed")
 	attempts := make(map[string]int)
 	var firstRun, firstTopics []string
 	runCtx, stop := context.WithCancel(ctx)
 	defer stop()
-	err = runConsumer(runCtx, kafka.ConsumerConfig{}, func(_ context.Context, got kafka.MessageRawData) error {
+	err = runConsumer(runCtx, kafka.ConsumerConfig{}, newRouter(func(got kafka.MessageRawData, data postEventData) error {
 		attempts[got.EventID]++
 		firstRun = append(firstRun, got.EventID)
 		firstTopics = append(firstTopics, got.Topic)
+		if data.PostID != 123 {
+			t.Errorf("postID = %d, want 123", data.PostID)
+		}
 		if got.EventID == "second" && attempts["second"] == 1 {
 			return handlerErr
 		}
@@ -104,7 +134,7 @@ func TestKafkaLifecycle(t *testing.T) {
 			stop()
 		}
 		return nil
-	})
+	}))
 	if err != nil || strings.Join(firstRun, ",") != "first,second,second,third" ||
 		attempts["second"] != 2 {
 		t.Fatalf("first run: events = %v, attempts = %v, error = %v", firstRun, attempts, err)
@@ -124,14 +154,14 @@ func TestKafkaLifecycle(t *testing.T) {
 	runCtx2, stop2 := context.WithCancel(ctx)
 	defer stop2()
 	var secondRun []string
-	err = runConsumer(runCtx2, kafka.ConsumerConfig{MaxAttempts: 2}, func(_ context.Context, got kafka.MessageRawData) error {
+	err = runConsumer(runCtx2, kafka.ConsumerConfig{MaxAttempts: 2}, newRouter(func(got kafka.MessageRawData, _ postEventData) error {
 		secondRun = append(secondRun, got.EventID)
 		if got.EventID == "fourth" {
 			return handlerErr
 		}
 		stop2()
 		return nil
-	})
+	}))
 	if err != nil || strings.Join(secondRun, ",") != "fourth,fourth,fifth" {
 		t.Fatalf("second run: %v, %v", secondRun, err)
 	}
@@ -143,11 +173,11 @@ func TestKafkaLifecycle(t *testing.T) {
 	finalCtx, stopFinal := context.WithCancel(ctx)
 	defer stopFinal()
 	var resumedAt string
-	err = runConsumer(finalCtx, kafka.ConsumerConfig{}, func(_ context.Context, got kafka.MessageRawData) error {
+	err = runConsumer(finalCtx, kafka.ConsumerConfig{}, newRouter(func(got kafka.MessageRawData, _ postEventData) error {
 		resumedAt = got.EventID
 		stopFinal()
 		return nil
-	})
+	}))
 	if err != nil || resumedAt != "sixth" {
 		t.Fatalf("resume after shutdown: event = %q, error = %v", resumedAt, err)
 	}

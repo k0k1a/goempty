@@ -80,6 +80,22 @@ func newMongoDB(ctx context.Context, cfg mongodb.Config, shutdownTimeout time.Du
 	}, nil
 }
 
+// newKafkaProducer creates the shared publisher. Wire releases it on assembly
+// failure; App runs cleanup after components stop, once publishing is over.
+// Close flushes buffered deliveries within its own delivery timeout.
+func newKafkaProducer(ctx context.Context, cfg kafka.Config) (kafka.Producer, func(), error) {
+	producer, err := kafka.NewProducer(ctx, cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	return producer, func() {
+		closeCtx := context.WithoutCancel(ctx)
+		if err := producer.Close(closeCtx); err != nil {
+			log.Error(closeCtx, "Close Kafka producer failed", zap.Error(err))
+		}
+	}, nil
+}
+
 // App retains the shared pools for its lifetime; business consumers receive
 // them directly through their constructors when storage-backed code is added.
 func newApp(server *httpserver.Server, jobs *scheduler.Scheduler, taskPool *async.Pool, eventBus *event.Bus, consumers []*kafka.Consumer, eventDeps *eventDependencies, shutdownTimeout time.Duration, handle *gorm.DB, client *goredis.Client, mongoClient *mongo.Client) (*App, error) {

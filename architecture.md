@@ -91,7 +91,7 @@ service 放在同一个 Go 包内，通过业务文件和不同 Service 类型�
 
 ### 消息消费与发布
 
-- 消费入口放 `internal/consumer`，处理消息解码、校验、service 调用以及 ACK、重试等协议行为。
+- 消费入口放 `internal/consumer`：controller 实现 handler 接口、持有 service 依赖，按 topic + event type 注册分发并校验消息字段；data 解码、ACK、重试等协议行为由对应的基础封装处理。
 - 消息发布实现放 `internal/repo/publisher`；service 通过接口使用发布能力。
 - 消费者注册与启停装配放 `internal/app/messaging.go`。
 - 通用连接与发布消费基础封装按实际中间件命名，如 `pkg/rabbitmq` 或 `pkg/kafka`，不包含订单等业务知识。目录树中的 rabbitmq 为命名示例，不指定中间件选型。
@@ -152,14 +152,15 @@ MongoDB 的原子操作与事务同样由 Repo 封装。操作选择、失败语
 │   │   ├── providers.go            # 初始化入口、组件构造与清理
 │   │   ├── wire.go                 # Wire 依赖声明
 │   │   ├── wire_gen.go             # Wire 生成的装配代码
-│   │   └── messaging.go            # 按需，注册消息消费者并管理启停
+│   │   └── messaging.go            # 注册消息消费者并管理启停
 │   ├── controller/                 # HTTP 接口适配
 │   │   ├── hello.go
 │   │   ├── error.go                # 路由不存在、方法不支持的错误入口
 │   │   ├── middleware/             # 请求标识、访问日志与 panic 恢复
 │   │   │   └── auth.go             # 按需，接入身份认证
 │   │   └── response/               # 统一响应和 HTTP 错误适配
-│   ├── consumer/                   # 按需，MQ 消费入口
+│   ├── consumer/                   # MQ 消费入口
+│   │   └── hello.go
 │   ├── event/                      # 进程内事件入口
 │   │   └── hello.go
 │   ├── job/                        # 定时任务入口
@@ -167,11 +168,13 @@ MongoDB 的原子操作与事务同样由 Repo 封装。操作选择、失败语
 │   ├── entity/                     # 业务数据、事件、公共分页与错误定义
 │   │   ├── hello.go
 │   │   ├── hello_event.go
+│   │   ├── hello_message.go
 │   │   ├── error.go
 │   │   └── page.go
 │   ├── service/                    # 业务逻辑，按业务拆分文件
 │   │   ├── hello.go
-│   │   └── hello_event.go
+│   │   ├── hello_event.go
+│   │   └── hello_message.go
 │   └── repo/                       # 数据访问与外部能力实现
 │       ├── db/                     # 数据库存储访问
 │       │   ├── hello.go
@@ -180,7 +183,8 @@ MongoDB 的原子操作与事务同样由 Repo 封装。操作选择、失败语
 │       ├── webapi/                 # 外部 HTTP 客户端，按系统划分子包
 │       │   └── hello/
 │       │       └── client.go
-│       └── publisher/              # 按需，业务消息发布
+│       └── publisher/              # 业务消息发布
+│           └── hello.go
 ├── pkg/                            # 基础组件
 │   ├── async/                      # 进程内异步任务池
 │   ├── db/                         # MySQL / GORM 连接与连接池

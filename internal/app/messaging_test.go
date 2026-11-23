@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"goempty/config"
+	"goempty/internal/entity"
 	"goempty/pkg/httpserver"
 	"goempty/pkg/kafka"
 )
@@ -18,7 +19,7 @@ func TestAppManagesKafkaConsumers(t *testing.T) {
 			Topics:       []string{"social-forum"},
 			TopicMapping: map[string]string{"social-forum": "forum-test"},
 		},
-		func(context.Context, kafka.MessageRawData) error { return nil },
+		kafka.HandlerFunc(func(context.Context, kafka.MessageRawData) error { return nil }),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -56,5 +57,43 @@ func TestAppManagesKafkaConsumers(t *testing.T) {
 	case <-consumer.Done():
 	default:
 		t.Fatal("app did not stop the consumer")
+	}
+}
+
+func TestNewKafkaProducer(t *testing.T) {
+	if _, _, err := newKafkaProducer(context.Background(), kafka.Config{}); err == nil {
+		t.Fatal("empty brokers must fail")
+	}
+	producer, cleanup, err := newKafkaProducer(context.Background(), kafka.Config{Brokers: []string{"127.0.0.1:1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if producer == nil {
+		t.Fatal("producer is nil")
+	}
+	cleanup()
+}
+
+func TestMessagingConsumersRegisterHelloDemo(t *testing.T) {
+	consumerCfg := kafka.ConsumerConfig{
+		Brokers:      []string{"127.0.0.1:1"},
+		GroupName:    "goempty-hello",
+		Topics:       []string{entity.HelloTopic},
+		TopicMapping: map[string]string{entity.HelloTopic: "hello-test"},
+	}
+	consumers, err := newMessagingConsumers(consumerCfg, &messagingDependencies{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(consumers) != 1 {
+		t.Fatalf("consumers = %d, want 1", len(consumers))
+	}
+
+	consumers, err = newMessagingConsumers(kafka.ConsumerConfig{}, &messagingDependencies{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(consumers) != 0 {
+		t.Fatalf("consumers without configuration = %d, want 0", len(consumers))
 	}
 }

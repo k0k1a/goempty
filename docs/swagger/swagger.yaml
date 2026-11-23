@@ -1,5 +1,12 @@
 basePath: /
 definitions:
+  entity.HelloGreetingMessage:
+    properties:
+      message:
+        type: string
+    required:
+    - message
+    type: object
   entity.HelloResponse:
     properties:
       message:
@@ -78,6 +85,39 @@ paths:
           schema:
             $ref: '#/definitions/response.Response-any'
       summary: Get a greeting
+      tags:
+      - hello
+  /hello/message:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Greeting message
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/entity.HelloGreetingMessage'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Message published successfully; code is 0
+          headers:
+            X-Request-ID:
+              description: Request ID
+              type: string
+          schema:
+            $ref: '#/definitions/response.Response-entity_HelloResponse'
+        "400":
+          description: Invalid request or publish failure
+          headers:
+            X-Request-ID:
+              description: Request ID
+              type: string
+          schema:
+            $ref: '#/definitions/response.Response-any'
+      summary: Publish a hello message
       tags:
       - hello
   /readyz:

@@ -41,6 +41,7 @@ func newHTTPHandler(deps *httpDependencies) *gin.Engine {
 
 	helloController := controller.NewHelloController(deps.HelloService)
 	engine.GET("/hello", helloController.Hello)
+	engine.POST("/hello/message", helloController.PublishMessage)
 	return engine
 }
 

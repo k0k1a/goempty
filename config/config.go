@@ -15,13 +15,14 @@ import (
 
 // Config contains file settings and startup settings supplied by the entry point.
 type Config struct {
-	Async           async.Config      `mapstructure:"async"`
-	MySQL           db.Config         `mapstructure:"mysql"`
-	Redis           redis.Config      `mapstructure:"redis"`
-	MongoDB         mongodb.Config    `mapstructure:"mongodb"`
-	Kafka           kafka.Config      `mapstructure:"kafka"`
-	HTTP            httpserver.Config `mapstructure:"-"`
-	ShutdownTimeout time.Duration     `mapstructure:"-"`
+	Async           async.Config         `mapstructure:"async"`
+	MySQL           db.Config            `mapstructure:"mysql"`
+	Redis           redis.Config         `mapstructure:"redis"`
+	MongoDB         mongodb.Config       `mapstructure:"mongodb"`
+	Kafka           kafka.Config         `mapstructure:"kafka"`
+	KafkaConsumer   kafka.ConsumerConfig `mapstructure:"kafka_consumer"`
+	HTTP            httpserver.Config    `mapstructure:"-"`
+	ShutdownTimeout time.Duration        `mapstructure:"-"`
 }
 
 var (

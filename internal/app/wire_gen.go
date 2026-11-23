@@ -10,6 +10,7 @@ import (
 	"context"
 	"goempty/config"
 	"goempty/internal/repo/db"
+	"goempty/internal/repo/publisher"
 	"goempty/internal/service"
 	"goempty/pkg/async"
 	"goempty/pkg/event"
@@ -30,12 +31,19 @@ func initialize(ctx context.Context, cfg config.Config) (*App, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	helloService := service.NewHelloService(helloRepo, bus)
+	kafkaConfig := cfg.Kafka
+	producer, cleanup, err := newKafkaProducer(ctx, kafkaConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+	helloPublisher := publisher.NewHelloPublisher(producer)
+	helloService := service.NewHelloService(helloRepo, bus, helloPublisher)
 	appHttpDependencies := &httpDependencies{
 		HelloService: helloService,
 	}
 	server, err := newHTTPServer(httpserverConfig, appHttpDependencies)
 	if err != nil {
+		cleanup()
 		return nil, nil, err
 	}
 	appJobDependencies := &jobDependencies{
@@ -43,10 +51,16 @@ func initialize(ctx context.Context, cfg config.Config) (*App, func(), error) {
 	}
 	scheduler, err := newScheduler(appJobDependencies)
 	if err != nil {
+		cleanup()
 		return nil, nil, err
 	}
-	v, err := newMessagingConsumers()
+	consumerConfig := cfg.KafkaConsumer
+	appMessagingDependencies := &messagingDependencies{
+		HelloService: helloService,
+	}
+	v, err := newMessagingConsumers(consumerConfig, appMessagingDependencies)
 	if err != nil {
+		cleanup()
 		return nil, nil, err
 	}
 	appEventDependencies := &eventDependencies{
@@ -54,31 +68,36 @@ func initialize(ctx context.Context, cfg config.Config) (*App, func(), error) {
 	}
 	duration := cfg.ShutdownTimeout
 	dbConfig := cfg.MySQL
-	gormDB, cleanup, err := newDatabase(ctx, dbConfig)
-	if err != nil {
-		return nil, nil, err
-	}
-	redisConfig := cfg.Redis
-	client, cleanup2, err := newRedis(ctx, redisConfig)
+	gormDB, cleanup2, err := newDatabase(ctx, dbConfig)
 	if err != nil {
 		cleanup()
 		return nil, nil, err
 	}
-	mongodbConfig := cfg.MongoDB
-	mongoClient, cleanup3, err := newMongoDB(ctx, mongodbConfig, duration)
+	redisConfig := cfg.Redis
+	client, cleanup3, err := newRedis(ctx, redisConfig)
 	if err != nil {
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	app, err := newApp(server, scheduler, pool, bus, v, appEventDependencies, duration, gormDB, client, mongoClient)
+	mongodbConfig := cfg.MongoDB
+	mongoClient, cleanup4, err := newMongoDB(ctx, mongodbConfig, duration)
 	if err != nil {
 		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
+	app, err := newApp(server, scheduler, pool, bus, v, appEventDependencies, duration, gormDB, client, mongoClient)
+	if err != nil {
+		cleanup4()
+		cleanup3()
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
 	return app, func() {
+		cleanup4()
 		cleanup3()
 		cleanup2()
 		cleanup()
