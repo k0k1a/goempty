@@ -20,5 +20,5 @@ func NewHelloPublisher(producer kafka.Producer) *HelloPublisher {
 
 // PublishGreeting publishes one HelloGreetingMQ message on the hello topic.
 func (p *HelloPublisher) PublishGreeting(ctx context.Context, message entity.HelloGreetingMessage) error {
-	return p.producer.Publish(ctx, entity.HelloTopic, kafka.NewMessageRawData(entity.HelloGreetingMQ, message))
+	return p.producer.PublishSync(ctx, entity.HelloTopic, kafka.NewMessageRawData(entity.HelloGreetingMQ, message))
 }

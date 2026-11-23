@@ -18,7 +18,7 @@ const deliveryTimeout = 10 * time.Second
 
 // Producer is a shared publisher. Stop submitting new events before closing it.
 type Producer interface {
-	Publish(ctx context.Context, topic string, event MessageRawData, opts ...PublishOption) error
+	PublishSync(ctx context.Context, topic string, event MessageRawData, opts ...PublishOption) error
 	// PublishAsync returns local validation errors directly. If it returns nil,
 	// done is called once with the delivery result, including buffer-full errors.
 	// Keep ctx active until delivery. done can run concurrently with callers and
@@ -56,7 +56,7 @@ func NewProducer(ctx context.Context, cfg Config) (Producer, error) {
 	return &producer{topicMapping: cfg.TopicMapping, client: client}, nil
 }
 
-func (p *producer) Publish(ctx context.Context, topic string, event MessageRawData, opts ...PublishOption) error {
+func (p *producer) PublishSync(ctx context.Context, topic string, event MessageRawData, opts ...PublishOption) error {
 	record, err := p.prepare(ctx, topic, event, opts)
 	if err != nil {
 		return err

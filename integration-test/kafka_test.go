@@ -59,7 +59,7 @@ func TestKafkaLifecycle(t *testing.T) {
 	event := kafka.NewMessageRawData("forum.post.created", map[string]any{"post_id": 123})
 	event.EventID = "first"
 	event.EventTime = time.Date(2026, 11, 20, 8, 0, 0, 0, time.UTC)
-	if err := producer.Publish(ctx, logicalTopic, event); err != nil {
+	if err := producer.PublishSync(ctx, logicalTopic, event); err != nil {
 		t.Fatal(err)
 	}
 	event.EventID = "second"
@@ -83,7 +83,7 @@ func TestKafkaLifecycle(t *testing.T) {
 		t.Fatal(ctx.Err())
 	}
 	event.EventID = "third"
-	if err := producer.Publish(ctx, logicalTopic, event); err != nil {
+	if err := producer.PublishSync(ctx, logicalTopic, event); err != nil {
 		t.Fatal(err)
 	}
 	verifyKafkaRecord(t, ctx, brokers, topic, recordTime)
@@ -147,7 +147,7 @@ func TestKafkaLifecycle(t *testing.T) {
 
 	for _, eventID := range []string{"fourth", "fifth"} {
 		event.EventID = eventID
-		if err := producer.Publish(ctx, logicalTopic, event); err != nil {
+		if err := producer.PublishSync(ctx, logicalTopic, event); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -167,7 +167,7 @@ func TestKafkaLifecycle(t *testing.T) {
 	}
 
 	event.EventID = "sixth"
-	if err := producer.Publish(ctx, logicalTopic, event); err != nil {
+	if err := producer.PublishSync(ctx, logicalTopic, event); err != nil {
 		t.Fatal(err)
 	}
 	finalCtx, stopFinal := context.WithCancel(ctx)

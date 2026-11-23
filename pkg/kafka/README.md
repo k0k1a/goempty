@@ -64,7 +64,7 @@ handler；同名事件在不同 topic 语义不同时天然由 topic 维度区�
 应用内发布实现放 `internal/repo/publisher`，Service 通过接口注入。`POST /hello/message`
 是 hello 示例入口：请求体为消息 data，发布到 `hello` topic，由 hello 消费者处理。
 
-同步调用 `Publish(ctx, topic, event, opts...)` 等待投递结果。异步调用
+同步调用 `PublishSync(ctx, topic, event, opts...)` 等待投递结果。异步调用
 `PublishAsync(ctx, topic, event, done, opts...)` 的返回值报告本地校验错误。返回
 `nil` 时，投递结果由 `done` 回调提供，也可能是缓冲区已满。异步调用的 context 应保持到
 回调执行。回调应尽快返回。需要使用同一个生产者继续发布时，在回调外发起调用。

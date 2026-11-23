@@ -19,7 +19,7 @@ type fakeProducer struct {
 	err   error
 }
 
-func (p *fakeProducer) Publish(_ context.Context, topic string, event kafka.MessageRawData, _ ...kafka.PublishOption) error {
+func (p *fakeProducer) PublishSync(_ context.Context, topic string, event kafka.MessageRawData, _ ...kafka.PublishOption) error {
 	p.calls = append(p.calls, publishCall{topic: topic, event: event})
 	return p.err
 }

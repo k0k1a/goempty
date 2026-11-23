@@ -84,7 +84,7 @@ func TestInvalidEventAndUnknownTopics(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = p.Close(context.Background()) })
-	if err := p.Publish(t.Context(), "", testEvent()); err == nil {
+	if err := p.PublishSync(t.Context(), "", testEvent()); err == nil {
 		t.Fatal("publishing to an empty topic succeeded")
 	}
 	record, err := p.(*producer).record("missing", testEvent(), nil)
