@@ -12,7 +12,7 @@ func TestLoadKafkaConfiguration(t *testing.T) {
     - 127.0.0.1:9092
   topic_mapping:
     social-forum: social-forum-dev
-    forum.events: Forum.Events.Dev
+    hello: hello-dev
 `)
 	cfg, err := Load()
 	if err != nil {
@@ -20,7 +20,7 @@ func TestLoadKafkaConfiguration(t *testing.T) {
 	}
 	if len(cfg.Kafka.Brokers) != 1 || cfg.Kafka.Brokers[0] != "127.0.0.1:9092" ||
 		cfg.Kafka.TopicMapping["social-forum"] != "social-forum-dev" ||
-		cfg.Kafka.TopicMapping["forum.events"] != "Forum.Events.Dev" {
+		cfg.Kafka.TopicMapping["hello"] != "hello-dev" {
 		t.Fatalf("Kafka = %+v", cfg.Kafka)
 	}
 }

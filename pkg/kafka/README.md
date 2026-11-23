@@ -35,7 +35,7 @@ kafka_consumer:
   retry_backoff: 1s  # 可选，默认 1s
 ```
 
-代码中发布和订阅都使用小写逻辑名，例如 `social-forum` 或 `forum.events`，实际 topic 保留配置中的大小写。`GroupName` 直接作为 Kafka group.id，环境区分写在名称本身。消费者的 `Topics` 与 `ConsumerConfig.TopicMapping` 要求一一对应，包内不做校验和回退；发布端用 `Config.TopicMapping`，缺失时回退为逻辑名。构造期不校验 topic 列表和映射内容，配置错误由 Kafka 在运行期报告。`MaxAttempts` 和 `RetryBackoff` 控制进程内重试，零值分别取默认的 3 次和 1 秒，负值构造失败。生产者和消费者在构造时读取配置，修改配置后重启应用。
+代码中发布和订阅都使用小写逻辑名，例如 `social-forum`，实际 topic 保留配置中的大小写。`topic_mapping` 的键不能包含点号：配置键按点号拆分，含点号的键会在解码时失败。`GroupName` 直接作为 Kafka group.id，环境区分写在名称本身。消费者的 `Topics` 与 `ConsumerConfig.TopicMapping` 要求一一对应，包内不做校验和回退；发布端用 `Config.TopicMapping`，缺失时回退为逻辑名。构造期不校验 topic 列表和映射内容，配置错误由 Kafka 在运行期报告。`MaxAttempts` 和 `RetryBackoff` 控制进程内重试，零值分别取默认的 3 次和 1 秒，负值构造失败。生产者和消费者在构造时读取配置，修改配置后重启应用。
 
 ## 事件格式
 
