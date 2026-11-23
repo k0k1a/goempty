@@ -210,6 +210,7 @@ MongoDB 的原子操作与事务同样由 Repo 封装。操作选择、失败语
 ├── .env.example                    # 按需，环境变量示例
 ├── AGENTS.md                       # 项目规则与文档阅读入口
 ├── architecture.md                 # 目录、分层依赖与事务边界
+├── CLAUDE.md                       # Claude Code 入口，导入 AGENTS.md
 ├── conventions.md                  # 组件选型与通用约定
 ├── Dockerfile                      # 按需，应用镜像构建
 ├── docker-compose.yml              # 按需，本地依赖服务编排

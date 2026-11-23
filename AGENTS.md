@@ -30,6 +30,7 @@
 ## 文档职责
 
 - `AGENTS.md` — 阅读入口、硬性约束、变更与验证流程。
+- `CLAUDE.md` — Claude Code 入口，仅导入 `AGENTS.md`，不承载独立规则。
 - `architecture.md` — 目录、分层依赖与事务边界。
 - `conventions.md` — 组件选型与通用约定。
 - 根 `README.md` — 面向开发者的项目概览、启动与验证命令。
