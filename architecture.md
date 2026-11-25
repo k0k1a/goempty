@@ -128,7 +128,7 @@ MongoDB 的原子操作与事务同样由 Repo 封装。操作选择、失败语
 
 ## 公共分页
 
-分页类型、各层处理职责及边界规则统一见[公共分页](conventions.md#公共分页)。
+分页类型、各层处理职责及边界规则统一见[公共分页](conventions.md#公共分页)。页码分页使用 `entity.Page`，游标分页使用 `entity.CursorPage`，游标编解码位于 `pkg/cursor`。
 
 ## 目录结构
 
@@ -187,6 +187,7 @@ MongoDB 的原子操作与事务同样由 Repo 封装。操作选择、失败语
 │           └── hello.go
 ├── pkg/                            # 基础组件
 │   ├── async/                      # 进程内异步任务池
+│   ├── cursor/                     # 游标编解码与签名
 │   ├── db/                         # MySQL / GORM 连接与连接池
 │   ├── env/                        # 应用名称与运行环境
 │   ├── event/                      # 进程内事件总线
@@ -205,7 +206,7 @@ MongoDB 的原子操作与事务同样由 Repo 封装。操作选择、失败语
 │   └── generate-api-docs/          # Swagger 文档生成入口
 ├── .agents/
 │   └── skills/
-│       └── goempty-new-project/    # 新项目生成与模板裁剪
+│       └── goempty-new-project/    # 项目创建、组件裁剪与向已有项目同步
 ├── .gitignore
 ├── .env.example                    # 按需，环境变量示例
 ├── AGENTS.md                       # 项目规则与文档阅读入口

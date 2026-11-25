@@ -85,6 +85,7 @@ MySQL / Redis / MongoDB 真实服务测试在缺少对应变量时跳过，不�
 | [HTTP Server](pkg/httpserver/README.md)、[日志](pkg/log/README.md)、[调度器](pkg/scheduler/README.md) | 组件使用和边界 |
 | [MongoDB](pkg/mongodb/README.md) | 客户端封装、配置和连接测试 |
 | [异步任务池](pkg/async/README.md)、[事件分发](pkg/event/README.md) | Ants 并发控制、一对多处理及关闭语义 |
+| [游标分页](pkg/cursor/README.md) | 签名游标编解码、scope 与用户绑定 |
 | [外部 HTTP 示例](internal/repo/webapi/hello/README.md) | 标准库客户端、超时、取消和响应解析 |
 | [Swagger](docs/swagger/README.md) | 注释与离线文档生成 |
 

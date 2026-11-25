@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | Web 框架 | Gin | HTTP 路由、中间件及接口请求处理 |
 | 数据访问 | GORM | 关系型数据库的 ORM 与数据访问 |
-| 关系型数据库 | MySQL | 通过 GORM MySQL 驱动访问，基础封装位于 `pkg/db` |
+| 关系型数据库 | MySQL | 通过 GORM MySQL 驱动访问，基础封装位于 `pkg/db`；启动时以调用方 Context 校验连接，失败即退出 |
 | Redis 客户端 | go-redis | Redis 连接与数据操作 |
 | 进程内异步任务 | Ants v2 | `pkg/async` 封装任务池，`pkg/event` 提供一对多事件分发；由 App 管理启停 |
 | MongoDB 客户端 | MongoDB 官方 Go Driver v2 | `pkg/mongodb` 提供连接封装，由 App 管理共享客户端，见[使用说明](pkg/mongodb/README.md) |
@@ -40,6 +40,9 @@
 - 请求与结果复用 `entity.Page`、`PageList[T]`，结果放在公共响应 data 中，包含 page、page_size、total、list。Controller 校验输入格式，Repo 使用 Service 已校验的 Offset/Limit。
 - 页码默认 1，每页默认 20、最大 100；省略或为 0 时使用默认值。Service 先 Normalize 再 Validate，拒绝负数、超限及 offset 整数溢出，不静默截断，不设置固定最大页码。
 - Repo 按相同筛选条件查询分页前总数和当前页，使用稳定排序。超出最后一页返回空列表，保留实际 total；List 应初始化为空 slice，输出 `[]`。
+- 深翻页或不要求总数的列表使用游标分页，请求复用 `entity.CursorPage`，结果复用 `CursorPageList[T]`；首次加载和刷新省略 cursor，续页传上一页的 next_cursor，没有下一页时为空字符串。
+- 游标由 `pkg/cursor` 编码并签名，scope 区分列表、环境和格式版本，签名与当前用户绑定。模板不提供签名 key 配置字段，使用方在构造时注入非空、不可预测的 key；不做游标分页的项目整体裁剪该包。
+- Repo 使用游标携带的排序字段与主键组成 keyset 条件，排序方向保持一致，并多取一条判断 has_more；入口限制游标长度，Service 将解码失败的游标按参数错误返回。
 
 ## 外部 HTTP 调用
 
@@ -61,6 +64,7 @@
 - 构造函数不提前监听或启动未托管的后台任务，路由和中间件在监听前完成注册。任务注册或事件订阅失败时中止初始化。初始化失败时释放已创建资源。
 - 退出时并行关闭 HTTP、调度器和任务池，关闭期间的任务或事件提交可能失败。App 等待关闭调用返回后释放连接池，入口等待 App 退出后关闭日志。HTTP 排空超时会强制关闭连接，任务关闭超时后仍会释放共享依赖。
 - 沿调用链传递已有 Context，业务应响应取消；清理使用保留调用链值、独立于运行取消状态的限时 Context，关闭连接不能代替业务退出。
+- 连接池创建后立即以调用方 Context 执行 Ping 校验连通性，失败释放连接池并中止启动；超时由调用方 Context 和组件自身配置约束，启动后的连接参数变更仍需重启。
 
 ## MongoDB 原子性
 

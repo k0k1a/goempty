@@ -12,8 +12,8 @@ import (
 )
 
 // New creates a shared root handle. The caller owns it and must call Close.
-// ctx is checked before initialization; DSN timeouts bound network operations
-// during gorm.Open, rather than ctx. Use WithContext for subsequent queries.
+// The pool is configured and pinged once with ctx before New returns; a failed
+// ping closes the pool and returns the error. Use WithContext for subsequent queries.
 func New(ctx context.Context, cfg Config) (*gorm.DB, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -21,12 +21,12 @@ func New(ctx context.Context, cfg Config) (*gorm.DB, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("db: initialize: %w", err)
 	}
-	handle, err := gorm.Open(mysql.Open(cfg.DSN), &gorm.Config{})
+	handle, err := gorm.Open(mysql.Open(cfg.DSN), &gorm.Config{DisableAutomaticPing: true})
 	if err != nil {
-		// GORM closes its pool when MySQL initialization or automatic ping fails.
-		return nil, fmt.Errorf("db: initialize GORM: %w", err)
+		// Driver initialization errors may echo the DSN.
+		return nil, errors.New("db: invalid MySQL DSN")
 	}
-	return initialize(cfg, handle)
+	return initialize(ctx, cfg, handle)
 }
 
 // SetLogger returns a session using log, sharing the original connection pool.
@@ -35,7 +35,7 @@ func SetLogger(handle *gorm.DB, log logger.Interface) *gorm.DB {
 	return handle.Session(&gorm.Session{Logger: log})
 }
 
-func initialize(cfg Config, handle *gorm.DB) (*gorm.DB, error) {
+func initialize(ctx context.Context, cfg Config, handle *gorm.DB) (*gorm.DB, error) {
 	pool, err := sqlPool(handle)
 	if err != nil {
 		return nil, err
@@ -44,6 +44,11 @@ func initialize(cfg Config, handle *gorm.DB) (*gorm.DB, error) {
 	pool.SetMaxIdleConns(cfg.MaxIdleConns)
 	pool.SetConnMaxLifetime(cfg.ConnMaxLifetime)
 	pool.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
+
+	if err := pool.PingContext(ctx); err != nil {
+		_ = pool.Close()
+		return nil, fmt.Errorf("db: ping: %w", err)
+	}
 	return handle, nil
 }
 

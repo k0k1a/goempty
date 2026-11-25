@@ -55,7 +55,7 @@ mysql:
 
 `app_test.yaml` 和 `app_prod.yaml` 仅预填异步任务池配置，数据库连接保持空模板，运行这些环境前需自行填写相应 `mysql`、`redis` 和 `mongodb` 配置；缺少配置会在初始化阶段启动失败。不提供线上连接信息。
 
-DSN 必须包含数据库名、`parseTime=true`，并设置正值 `timeout`、`readTimeout`、`writeTimeout`。初始化复用 `pkg/db.New`，context 仅在初始化前检查，连接过程由 DSN 网络超时约束，并非初始化总超时。连接池要求最大连接数大于零、空闲连接数在零至最大连接数之间、连接有效期非负。
+DSN 必须包含数据库名、`parseTime=true`，并设置正值 `timeout`、`readTimeout`、`writeTimeout`。初始化复用 `pkg/db.New`，context 在初始化前检查并用于启动 Ping；连接与 Ping 的网络操作仍由 DSN 超时约束，不额外设置初始化总超时。连接池要求最大连接数大于零、空闲连接数在零至最大连接数之间、连接有效期非负。
 
 关闭超时在 `cmd/app/main.go` 中固定为 10 秒，YAML 不提供 `shutdown_timeout` 字段，也不绑定 `GOEMPTY_SHUTDOWN_TIMEOUT` 环境变量。当前仍要求选中的配置文件存在。
 

@@ -40,3 +40,32 @@ type PageList[T any] struct {
 	Total int64 `json:"total"`
 	List  []T   `json:"list"`
 }
+
+// CursorPage is shared by cursor-paginated list requests. Normalize before Validate.
+type CursorPage struct {
+	PageSize int    `form:"page_size" json:"page_size" binding:"omitempty,min=1,max=100" minimum:"0" maximum:"100" default:"20"`
+	Cursor   string `form:"cursor" json:"cursor" binding:"omitempty,max=128" maxLength:"128"`
+}
+
+func (p *CursorPage) Normalize() {
+	if p.PageSize == 0 {
+		p.PageSize = DefaultPageSize
+	}
+}
+
+func (p *CursorPage) Validate() error {
+	if p.PageSize < 1 || p.PageSize > MaxPageSize {
+		return ErrInvalidArgument
+	}
+	return nil
+}
+
+// FetchLimit requests one extra row to detect whether another page exists.
+func (p *CursorPage) FetchLimit() int { return p.PageSize + 1 }
+
+// CursorPageList contains one page of cursor results. Use a non-nil List for [].
+type CursorPageList[T any] struct {
+	List       []T    `json:"list"`
+	HasMore    bool   `json:"has_more"`
+	NextCursor string `json:"next_cursor"`
+}

@@ -42,3 +42,32 @@ func TestPage(t *testing.T) {
 		t.Fatalf("JSON = %s, %v", body, err)
 	}
 }
+
+func TestCursorPage(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		page  CursorPage
+		valid bool
+		limit int
+	}{
+		{"defaults", CursorPage{}, true, DefaultPageSize + 1},
+		{"max size", CursorPage{PageSize: MaxPageSize}, true, MaxPageSize + 1},
+		{"negative size", CursorPage{PageSize: -1}, false, 0},
+		{"size too large", CursorPage{PageSize: MaxPageSize + 1}, false, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.page.Normalize()
+			err := tc.page.Validate()
+			if (err == nil) != tc.valid {
+				t.Fatalf("Validate() = %v", err)
+			}
+			if tc.valid && tc.page.FetchLimit() != tc.limit {
+				t.Fatalf("FetchLimit() = %d, want %d", tc.page.FetchLimit(), tc.limit)
+			}
+		})
+	}
+	body, err := json.Marshal(CursorPageList[string]{List: []string{}, HasMore: false, NextCursor: ""})
+	if err != nil || string(body) != `{"list":[],"has_more":false,"next_cursor":""}` {
+		t.Fatalf("JSON = %s, %v", body, err)
+	}
+}

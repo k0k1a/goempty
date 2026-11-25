@@ -9,7 +9,7 @@ Wire 生成依赖组装代码，`App` 管理运行组件的生命周期。当前
 | 文件 | 装配职责 |
 | --- | --- |
 | `wire.go` | 声明构造函数、接口绑定及各入口所需的依赖，通过私有 `initialize(ctx, cfg)` 生成依赖装配和失败清理。 |
-| `providers.go` | `Initialize` 调用生成代码并将清理函数交给 App。连接 provider 创建 MySQL、Redis、MongoDB 客户端和 Kafka 生产者并返回清理函数，Redis、MongoDB 初始化包含 Ping；生产者清理时 flush 并关闭。 |
+| `providers.go` | `Initialize` 调用生成代码并将清理函数交给 App。连接 provider 创建 MySQL、Redis、MongoDB 客户端和 Kafka 生产者并返回清理函数，MySQL、Redis、MongoDB 初始化包含 Ping；生产者清理时 flush 并关闭。 |
 | `http.go` | 接收 HTTP 所需的 Service，构造 Gin Engine 和 Controller，注册中间件及路由。 |
 | `jobs.go` | 接收 Job 所需的 Service，创建调度器并注册任务。 |
 | `events.go` | 接收事件处理所需的 Service，构造 Event Controller 和订阅。`newApp` 在初始化期间调用注册函数。 |
