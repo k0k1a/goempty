@@ -122,7 +122,7 @@ service 放在同一个 Go 包内，通过业务文件和不同 Service 类型�
 
 Service 不编写事务，不向 Repo 传入事务回调；完整原子操作及事务由 Repo 封装，Service 调用其方法进行业务编排。数据库事务不覆盖外部系统副作用，事务中不进行不必要的网络调用。
 
-GORM / MySQL 的事务写在 Repo 层，不暴露 GORM 事务句柄。需要原子完成的多个数据库步骤由一个 Repo 方法封装，内部负责事务、锁、条件更新、提交和失败回滚；依赖数据库当前状态的校验也在事务内完成，不能以多次独立写操作代替事务。
+GORM / MySQL 与 PostgreSQL 的事务写在 Repo 层，不暴露 GORM 事务句柄。需要原子完成的多个数据库步骤由一个 Repo 方法封装，内部负责事务、锁、条件更新、提交和失败回滚；依赖数据库当前状态的校验也在事务内完成，不能以多次独立写操作代替事务。
 
 MongoDB 的原子操作与事务同样由 Repo 封装。操作选择、失败语义和重试边界见 [MongoDB 原子性](conventions.md#mongodb-原子性)。
 
@@ -195,6 +195,7 @@ MongoDB 的原子操作与事务同样由 Repo 封装。操作选择、失败语
 │   ├── httpserver/                 # HTTP 服务与优雅关闭
 │   ├── log/                        # 日志与请求标识
 │   ├── mongodb/                    # MongoDB 客户端
+│   ├── postgres/                   # PostgreSQL / GORM 连接与连接池
 │   ├── rabbitmq/                   # 按需，MQ 基础封装，按实际选型命名
 │   ├── redis/                      # Redis 客户端
 │   └── scheduler/                  # 定时任务调度

@@ -373,7 +373,7 @@ func newHTTPTestApp(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newApp(server, jobs, tasks, events, nil, &eventDependencies{HelloService: helloService}, cfg.ShutdownTimeout, nil, nil, nil)
+	return newApp(server, jobs, tasks, events, nil, &eventDependencies{HelloService: helloService}, cfg.ShutdownTimeout, mysqlHandle{}, postgresHandle{}, nil, nil)
 }
 
 func newTestTasks(t *testing.T, cfg async.Config) (*async.Pool, *event.Bus) {

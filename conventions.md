@@ -11,6 +11,7 @@
 | Web 框架 | Gin | HTTP 路由、中间件及接口请求处理 |
 | 数据访问 | GORM | 关系型数据库的 ORM 与数据访问 |
 | 关系型数据库 | MySQL | 通过 GORM MySQL 驱动访问，基础封装位于 `pkg/db`；启动时以调用方 Context 校验连接，失败即退出 |
+| 关系型数据库 | PostgreSQL | 通过 GORM PostgreSQL 驱动访问，基础封装位于 `pkg/postgres`；启动时以调用方 Context 校验连接，失败即退出 |
 | Redis 客户端 | go-redis | Redis 连接与数据操作 |
 | 进程内异步任务 | Ants v2 | `pkg/async` 封装任务池，`pkg/event` 提供一对多事件分发；由 App 管理启停 |
 | MongoDB 客户端 | MongoDB 官方 Go Driver v2 | `pkg/mongodb` 提供连接封装，由 App 管理共享客户端，见[使用说明](pkg/mongodb/README.md) |

@@ -10,6 +10,13 @@ mysql:
   conn_max_lifetime: 30m
   conn_max_idle_time: 5m
 
+postgres:
+  dsn: "postgres://goempty:CHANGE_ME@127.0.0.1:5432/goempty?sslmode=disable&connect_timeout=5"
+  max_open_conns: 10
+  max_idle_conns: 5
+  conn_max_lifetime: 30m
+  conn_max_idle_time: 5m
+
 redis:
   addr: "127.0.0.1:6379"
   username: ""

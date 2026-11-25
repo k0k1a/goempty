@@ -24,7 +24,8 @@ import (
 // App owns the running components. Business dependencies are held by their
 // consumers rather than exposed through App as a service registry.
 type App struct {
-	database        *gorm.DB
+	mysql           *gorm.DB
+	postgres        *gorm.DB
 	redisClient     *goredis.Client
 	mongoClient     *mongo.Client
 	httpServer      *httpserver.Server

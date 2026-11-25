@@ -1,10 +1,10 @@
 # goempty
 
-用于创建新 Go / Gin 服务的模板。已提供配置、日志、MySQL、Redis、MongoDB、统一响应、Wire 依赖组装、HTTP 优雅关闭、进程内定时调度、异步任务池和事件分发。基础组件与生命周期测试保留，便于新项目修改后检查回归。
+用于创建新 Go / Gin 服务的模板。已提供配置、日志、MySQL、PostgreSQL、Redis、MongoDB、统一响应、Wire 依赖组装、HTTP 优雅关闭、进程内定时调度、异步任务池和事件分发。基础组件与生命周期测试保留，便于新项目修改后检查回归。
 
 ## 本地启动
 
-1. 准备 MySQL、数据库、单机 Redis 和 MongoDB。
+1. 准备 MySQL、PostgreSQL 数据库、单机 Redis 和 MongoDB。
 2. 修改 [开发配置](configs/app_dev.yaml) 中的连接信息；不要提交真实生产凭据。程序不会创建数据库或业务表。
 3. 在项目根目录执行：
 
@@ -23,7 +23,7 @@ make build
 
 保留定时任务时，每个实例会在每分钟整点尝试发布问候事件。订阅者完成处理后可在服务日志中看到 `Hello task greeting`。HTTP 和定时事件示例共用同一份固定问候语。另有一个独立的外部 HTTP 客户端示例，可按需使用。
 
-配置文件支持监听重载，但已有 MySQL、Redis、MongoDB 连接池不会重建；连接参数以及入口设置的 HTTP、关闭参数变更需重启。完整边界见 [配置说明](config/README.md)。
+配置文件支持监听重载，但已有 MySQL、PostgreSQL、Redis、MongoDB 连接池不会重建；连接参数以及入口设置的 HTTP、关闭参数变更需重启。完整边界见 [配置说明](config/README.md)。
 
 ## 构建与测试
 
@@ -61,16 +61,17 @@ make build APP_NAME=myservice DIST_DIR=dist
 
 不同平台构建默认写入同一路径，需保留多份产物时指定不同的 `DIST_DIR`。`APP_NAME` 决定可执行文件名，应用运行时仍通过环境变量 `APP_NAME` 选择配置文件。启用 CGO 时需准备目标平台的 C 工具链。
 
-MySQL / Redis / MongoDB 真实服务测试在缺少对应变量时跳过，不等于已经验证连接。仅使用隔离服务：
+MySQL / PostgreSQL / Redis / MongoDB 真实服务测试在缺少对应变量时跳过，不等于已经验证连接。仅使用隔离服务：
 
 | 测试环境变量 | 要求 |
 | --- | --- |
 | `GOEMPTY_TEST_MYSQL_DSN` | 包含数据库名、`parseTime=true`、正值 `timeout` / `readTimeout` / `writeTimeout`；账号需临时表权限 |
+| `GOEMPTY_TEST_POSTGRES_DSN` | 包含数据库名、正值 `connect_timeout` |
 | `GOEMPTY_TEST_REDIS_ADDR` | 测试 Redis 地址，形如 `127.0.0.1:6379` |
 | `GOEMPTY_TEST_REDIS_USERNAME` / `GOEMPTY_TEST_REDIS_PASSWORD` | 按需设置 |
 | `GOEMPTY_TEST_MONGODB_URI` | 隔离 MongoDB 连接串，按需包含认证和 TLS 参数 |
 
-这些变量只用于测试，不覆盖应用 YAML。设置后运行 `go test -count=1 ./internal/app ./integration-test`，应用组装生命周期测试同时需要三个服务。
+这些变量只用于测试，不覆盖应用 YAML。设置后运行 `go test -count=1 ./internal/app ./integration-test`，应用组装生命周期测试同时需要四个服务。
 
 ## 开发导航
 

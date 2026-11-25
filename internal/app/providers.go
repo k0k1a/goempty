@@ -14,6 +14,7 @@ import (
 	"goempty/pkg/kafka"
 	"goempty/pkg/log"
 	"goempty/pkg/mongodb"
+	"goempty/pkg/postgres"
 	"goempty/pkg/redis"
 	"goempty/pkg/scheduler"
 
@@ -33,16 +34,36 @@ func Initialize(ctx context.Context, cfg config.Config) (*App, error) {
 	return a, nil
 }
 
-// newDatabase owns the shared pool. Wire cleans it up on assembly failure;
+// mysqlHandle and postgresHandle label the relational database pools so Wire
+// can keep two *gorm.DB providers apart.
+type mysqlHandle struct{ *gorm.DB }
+
+type postgresHandle struct{ *gorm.DB }
+
+// newMySQL owns the shared pool. Wire cleans it up on assembly failure;
 // App closes it after HTTP and task shutdown on successful initialization.
-func newDatabase(ctx context.Context, cfg db.Config) (*gorm.DB, func(), error) {
+func newMySQL(ctx context.Context, cfg db.Config) (mysqlHandle, func(), error) {
 	handle, err := db.New(ctx, cfg)
 	if err != nil {
-		return nil, nil, err
+		return mysqlHandle{}, nil, err
 	}
-	return handle, func() {
+	return mysqlHandle{handle}, func() {
 		if err := db.Close(handle); err != nil {
-			log.Error(context.WithoutCancel(ctx), "Close database failed", zap.Error(err))
+			log.Error(context.WithoutCancel(ctx), "Close MySQL failed", zap.Error(err))
+		}
+	}, nil
+}
+
+// newPostgres owns the shared pool. Wire cleans it up on assembly failure;
+// App closes it after HTTP and task shutdown on successful initialization.
+func newPostgres(ctx context.Context, cfg postgres.Config) (postgresHandle, func(), error) {
+	handle, err := postgres.New(ctx, cfg)
+	if err != nil {
+		return postgresHandle{}, nil, err
+	}
+	return postgresHandle{handle}, func() {
+		if err := postgres.Close(handle); err != nil {
+			log.Error(context.WithoutCancel(ctx), "Close PostgreSQL failed", zap.Error(err))
 		}
 	}, nil
 }
@@ -98,7 +119,7 @@ func newKafkaProducer(ctx context.Context, cfg kafka.Config) (kafka.Producer, fu
 
 // App retains the shared pools for its lifetime; business consumers receive
 // them directly through their constructors when storage-backed code is added.
-func newApp(server *httpserver.Server, jobs *scheduler.Scheduler, taskPool *async.Pool, eventBus *event.Bus, consumers []*kafka.Consumer, eventDeps *eventDependencies, shutdownTimeout time.Duration, handle *gorm.DB, client *goredis.Client, mongoClient *mongo.Client) (*App, error) {
+func newApp(server *httpserver.Server, jobs *scheduler.Scheduler, taskPool *async.Pool, eventBus *event.Bus, consumers []*kafka.Consumer, eventDeps *eventDependencies, shutdownTimeout time.Duration, mysql mysqlHandle, postgres postgresHandle, client *goredis.Client, mongoClient *mongo.Client) (*App, error) {
 	a, err := New(server, jobs, taskPool, eventBus, consumers, shutdownTimeout)
 	if err != nil {
 		return nil, err
@@ -106,7 +127,8 @@ func newApp(server *httpserver.Server, jobs *scheduler.Scheduler, taskPool *asyn
 	if err := registerEvents(eventBus, eventDeps); err != nil {
 		return nil, fmt.Errorf("register event controllers: %w", err)
 	}
-	a.database = handle
+	a.mysql = mysql.DB
+	a.postgres = postgres.DB
 	a.redisClient = client
 	a.mongoClient = mongoClient
 	return a, nil

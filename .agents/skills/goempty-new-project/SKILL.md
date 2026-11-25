@@ -1,6 +1,6 @@
 ---
 name: goempty-new-project
-description: 从当前 goempty Go/Gin 模板创建新项目，或将模板组件同步到已有项目。创建时必须由用户选择所需组件，支持 MySQL、MongoDB、Redis、Kafka 生产者/消费者、定时任务、异步任务池、事件总线、HTTP 入口、分页、示例链路与 Swagger 的任意组合。
+description: 从当前 goempty Go/Gin 模板创建新项目，或将模板组件同步到已有项目。创建时必须由用户选择所需组件，支持 MySQL、PostgreSQL、MongoDB、Redis、Kafka 生产者/消费者、定时任务、异步任务池、事件总线、HTTP 入口、分页、示例链路与 Swagger 的任意组合。
 ---
 
 # 模板项目创建与组件同步
@@ -10,7 +10,7 @@ description: 从当前 goempty Go/Gin 模板创建新项目，或将模板组件
 ## 组件模型
 
 - 不可裁剪的运行骨架：`cmd/app` 入口、`config` 加载与热加载、`pkg/log`、`pkg/env`、`internal/app` 的 Wire 与生命周期、根文档和 `go.mod`。
-- 其余全部可裁剪，包括 HTTP 入口、公共错误与响应、MySQL、MongoDB、Redis、Kafka 生产者与消费者、定时任务、异步任务池、事件总线、页码与游标分页、外部 HTTP 示例、Hello 示例链路、Swagger 生成和数据库迁移规范。
+- 其余全部可裁剪，包括 HTTP 入口、公共错误与响应、MySQL、PostgreSQL、MongoDB、Redis、Kafka 生产者与消费者、定时任务、异步任务池、事件总线、页码与游标分页、外部 HTTP 示例、Hello 示例链路、Swagger 生成和数据库迁移规范。
 - 创建时必须至少选择一个运行入口：HTTP 入口、Kafka 消费者或定时任务；其余组件按依赖关系组合。
 - 组件清单、依赖关系、专属实现与连带调整见 [组件目录](references/trimming.md)；向已有项目同步的流程见 [同步规则](references/sync.md)。
 

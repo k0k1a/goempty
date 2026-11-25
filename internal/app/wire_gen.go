@@ -68,27 +68,28 @@ func initialize(ctx context.Context, cfg config.Config) (*App, func(), error) {
 	}
 	duration := cfg.ShutdownTimeout
 	dbConfig := cfg.MySQL
-	gormDB, cleanup2, err := newDatabase(ctx, dbConfig)
+	appMysqlHandle, cleanup2, err := newMySQL(ctx, dbConfig)
 	if err != nil {
 		cleanup()
 		return nil, nil, err
 	}
-	redisConfig := cfg.Redis
-	client, cleanup3, err := newRedis(ctx, redisConfig)
+	postgresConfig := cfg.Postgres
+	appPostgresHandle, cleanup3, err := newPostgres(ctx, postgresConfig)
 	if err != nil {
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	mongodbConfig := cfg.MongoDB
-	mongoClient, cleanup4, err := newMongoDB(ctx, mongodbConfig, duration)
+	redisConfig := cfg.Redis
+	client, cleanup4, err := newRedis(ctx, redisConfig)
 	if err != nil {
 		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	app, err := newApp(server, scheduler, pool, bus, v, appEventDependencies, duration, gormDB, client, mongoClient)
+	mongodbConfig := cfg.MongoDB
+	mongoClient, cleanup5, err := newMongoDB(ctx, mongodbConfig, duration)
 	if err != nil {
 		cleanup4()
 		cleanup3()
@@ -96,7 +97,17 @@ func initialize(ctx context.Context, cfg config.Config) (*App, func(), error) {
 		cleanup()
 		return nil, nil, err
 	}
+	app, err := newApp(server, scheduler, pool, bus, v, appEventDependencies, duration, appMysqlHandle, appPostgresHandle, client, mongoClient)
+	if err != nil {
+		cleanup5()
+		cleanup4()
+		cleanup3()
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
 	return app, func() {
+		cleanup5()
 		cleanup4()
 		cleanup3()
 		cleanup2()

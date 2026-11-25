@@ -30,7 +30,7 @@
 
 ## 常见组合要点
 
-- **新增存储（MySQL/MongoDB/Redis）**：补 `pkg` 包、config 字段、YAML 段、provider、App 字段、`newApp` 参数、Wire 和根文档；确认目标现有 Service/Repo 是否已自行接入同类连接。
+- **新增存储（MySQL/PostgreSQL/MongoDB/Redis）**：补 `pkg` 包、config 字段、YAML 段、provider、App 字段、`newApp` 参数、Wire 和根文档；确认目标现有 Service/Repo 是否已自行接入同类连接。同时接入 MySQL 与 PostgreSQL 时，provider 需用包装类型区分两个 `*gorm.DB`。
 - **新增 Kafka**：生产与消费分开处理；生产者只需 `kafka` 段与 provider，消费者还需要 `kafka_consumer`、`messaging.go`、App 的 consumers 与启停。示例链路按需同步。
 - **向无 HTTP 项目新增 HTTP 入口**：补 server、middleware、response、error 与路由，恢复 `main.go` 的 `PORT` 解析和 `httpserver.Config`，调整 App 的 server 参数、Run 等待和 Shutdown，确认退出路径仍释放资源。
 - **新增调度或事件**：事件总线依赖异步任务池；只补组件、不补示例时保留零任务调度器或空总线；至少保留一个运行入口的约束仍然适用。
@@ -43,3 +43,4 @@
 1. 同步 MySQL 和 Redis → 两个连接创建、Ping、关闭正确，三个环境 YAML 与 `config.Config` 一致，现有 handler 不被修改。
 2. 同步 Kafka 消费者 → `kafka_consumer`、`internal/consumer`、App 消费者启停存在；不新增 `POST /hello/message`，不新增测试。
 3. 向该项目同步 HTTP 入口 → 监听、healthz/readyz、`GET /hello`、取消退出和清理可用，Wire 重新生成，根文档只增加实际保留内容。
+4. 向该项目同步 PostgreSQL → `postgres` 配置段、`newPostgres`、App postgres 字段与关闭路径存在，不新增 MySQL，Wire 重新生成。

@@ -25,7 +25,8 @@
 | 异步任务池 | — | `pkg/async/` | `config.Config.Async` 与 YAML `async` 段、`async.New` provider、App 的 taskPool 参数、校验与启停、Ants 依赖与文档 |
 | 事件总线 | 异步任务池 | `pkg/event/` | `event.New` provider、App 的 eventBus 参数与启停、`internal/app/events.go`、Wire `HelloEventPublisher` 绑定、文档。无订阅时删除 `events.go` |
 | Hello 任务与事件示例 | 定时任务、事件总线、异步任务池 | `internal/job/hello.go`、`internal/event/hello.go`、`internal/entity/hello_event.go`、`internal/service/hello_event.go`、`jobs.go`/`events.go` 中的注册 | `HelloService` 的事件发布接口、字段与方法、Wire 绑定、`jobDependencies`/`eventDependencies`。移除后保留零任务调度器和空总线 |
-| MySQL | — | `pkg/db/` | `config.Config.MySQL`、全部 YAML `mysql` 段、`newDatabase`、App 的 database 字段、newApp 参数、Wire、GORM/MySQL 依赖、事务文档、README 测试变量 |
+| MySQL | — | `pkg/db/` | `config.Config.MySQL`、全部 YAML `mysql` 段、`newMySQL`、`mysqlHandle`、App 的 mysql 字段、newApp 参数、Wire、GORM/MySQL 依赖、事务文档、README 测试变量 |
+| PostgreSQL | — | `pkg/postgres/` | `config.Config.Postgres`、全部 YAML `postgres` 段、`newPostgres`、`postgresHandle`、App 的 postgres 字段、newApp 参数、Wire、GORM/PostgreSQL 与 pgx 依赖、事务文档、README 测试变量。与 MySQL 相互独立，可同时保留 |
 | MongoDB | — | `pkg/mongodb/` | `config.Config.MongoDB` 与 YAML 段、`newMongoDB`、App 的 mongoClient、newApp 参数、Wire、官方 Driver 依赖与文档 |
 | Redis | — | `pkg/redis/` | `config.Config.Redis` 与 YAML 段、`newRedis`、App 的 redisClient、newApp 参数、Wire、go-redis 依赖与文档 |
 | Kafka 生产者 | — | `pkg/kafka/` | `config.Config.Kafka` 与 YAML `kafka` 段、`newKafkaProducer`、Wire 字段与清理、文档。`internal/repo/publisher/` 随示例链路 |
@@ -35,7 +36,7 @@
 | 游标分页 | — | `pkg/cursor/`、`internal/entity/page.go` 中 `CursorPage`、`CursorPageList` 及 `FetchLimit` | conventions 公共分页的游标条目、architecture 目录树与 `pkg/cursor/README.md` |
 | 外部 HTTP 示例 | — | `internal/repo/webapi/hello/` | 不参与装配。architecture 目录树与 README 导航；无其他外部客户端时删除空 `webapi/` 目录 |
 | Swagger 生成 | HTTP 入口（注解） | `scripts/generate-api-docs/`、`docs/swagger/`、`main.go` 与 Controller 的 swag 注释 | Makefile `docs` 目标、README 生成命令 |
-| 数据库迁移规范 | MySQL | `migrations/` | conventions 数据库变更章节；无 MySQL 时删除 SQL 专属要求，保留通用 Repo 原子性与事务职责 |
+| 数据库迁移规范 | MySQL 或 PostgreSQL | `migrations/` | conventions 数据库变更章节；无关系型数据库时删除 SQL 专属要求，保留通用 Repo 原子性与事务职责 |
 
 ## 示例链路
 
@@ -70,5 +71,6 @@
 5. “创建 worker，只保留 Kafka 消费者和 Hello MQ 消费示例” → 无 HTTP、调度、存储、生产者；`kafka_consumer` 存在，App 只管理消费者；发布接口与 `POST /hello/message` 不存在。
 6. “创建 clean-api，只保留定时任务” → 零任务调度器可启动，无任何 Hello、HTTP、存储和 Kafka 代码或配置。
 7. “创建 full-service，全部组件” → 完整模板，module 与应用名替换正确，Wire 与 Swagger 重新生成，`go vet ./...`、`go build ./...` 通过。
+8. “创建 pg-service，只保留 PostgreSQL、Redis 和 HTTP 入口” → 无 MySQL、调度、Kafka、MongoDB；`postgres` 配置段与 `newPostgres` 保留，App 无 mysql 字段与参数，三个环境配置与根文档一致。
 
 每种组合应无 `_test.go`、不携带生成技能、不修改源。已有目标或目标位于源内时在写入前停止。真实连接只在隔离服务可用时验证。

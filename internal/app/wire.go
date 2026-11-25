@@ -18,10 +18,11 @@ import (
 // initialize assembles dependencies and returns cleanup for transfer to App.
 func initialize(ctx context.Context, cfg config.Config) (*App, func(), error) {
 	wire.Build(
-		wire.FieldsOf(new(config.Config), "MySQL", "Redis", "MongoDB", "Kafka", "HTTP", "Async", "KafkaConsumer", "ShutdownTimeout"),
+		wire.FieldsOf(new(config.Config), "MySQL", "Postgres", "Redis", "MongoDB", "Kafka", "HTTP", "Async", "KafkaConsumer", "ShutdownTimeout"),
 		async.New,
 		event.New,
-		newDatabase,
+		newMySQL,
+		newPostgres,
 		newRedis,
 		newMongoDB,
 		newKafkaProducer,

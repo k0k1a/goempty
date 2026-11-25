@@ -10,6 +10,7 @@ import (
 	"goempty/pkg/httpserver"
 	"goempty/pkg/kafka"
 	"goempty/pkg/mongodb"
+	"goempty/pkg/postgres"
 	"goempty/pkg/redis"
 )
 
@@ -17,6 +18,7 @@ import (
 type Config struct {
 	Async           async.Config         `mapstructure:"async"`
 	MySQL           db.Config            `mapstructure:"mysql"`
+	Postgres        postgres.Config      `mapstructure:"postgres"`
 	Redis           redis.Config         `mapstructure:"redis"`
 	MongoDB         mongodb.Config       `mapstructure:"mongodb"`
 	Kafka           kafka.Config         `mapstructure:"kafka"`
