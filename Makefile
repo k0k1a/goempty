@@ -27,7 +27,7 @@ run:
 
 build:
 	mkdir -p "$(DIST_DIR)"
-	CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) go build -trimpath -ldflags="$(LDFLAGS)" -o "$(DIST_DIR)/$(APP_NAME)" ./cmd/app
+	CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) go build -v -trimpath -ldflags="$(LDFLAGS)" -o "$(DIST_DIR)/$(APP_NAME)" ./cmd/app
 
 fmt:
 	go fmt ./...
