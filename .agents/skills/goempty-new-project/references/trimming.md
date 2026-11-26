@@ -50,6 +50,7 @@
 ## 装配与生命周期
 
 - `App.New`、`Run`、`Shutdown` 只接收所选运行组件：删除未选组件的参数、字段、校验和 import，不保留 nil、空切片或空接口占位。
+- MySQL 和 PostgreSQL 中只保留一种时，保留的 `newMySQL` 或 `newPostgres` 返回 `(*gorm.DB, func(), error)`；`newApp` 直接接收 `*gorm.DB` 并赋给对应 App 字段，移除 `mysqlHandle`、`postgresHandle` 和 `.DB` 解包。Redis、MongoDB 不影响这一判断。两者都保留时，使用 `mysqlHandle` 和 `postgresHandle` 区分 Wire 中的两个连接。两种组合都保留 provider 的清理函数、初始化失败清理和 App 退出清理。
 - 无 HTTP 时，App 不启动监听，将所选消费者或调度器的结果交给 Run 等待；`main.go` 去掉 `PORT` 与 `httpserver.Config`，并保证退出路径仍释放已创建资源。
 - 选择定时任务时同时保留事件总线与异步任务池，App 的 scheduler、taskPool、eventBus 参数与启停保持一致；不保留零任务调度器。
 - 无异步任务池时连带移除事件总线；无事件总线时删除订阅装配与相关 Service 方法。
@@ -66,11 +67,11 @@
 
 1. 未给出组件集合 → 技能列出组件目录与依赖并询问，不生成任何文件。
 2. “创建 plain-api，只保留 HTTP 入口” → 有 `GET /goempty/v1/healthz`、`GET /goempty/v1/readyz`、`GET /goempty/v1/hello`、Hello Service/Repo 和外部 HTTP 示例；无 `POST /goempty/v1/hello/message`、存储、调度、Kafka 和 Swagger 生成，Wire/build/vet 通过。
-3. “创建 order-service，只保留 MySQL、Redis 和 HTTP 入口” → 保留两个连接、`GET /goempty/v1/hello` 和外部 HTTP 示例，无调度、Kafka、MongoDB。三个环境配置与根文档一致。
+3. “创建 order-service，只保留 MySQL、Redis 和 HTTP 入口” → 保留两个连接，`newMySQL` 和 `newApp` 直接传递 `*gorm.DB`，无数据库包装类型；保留 `GET /goempty/v1/hello` 和外部 HTTP 示例，无调度、Kafka、MongoDB。三个环境配置与根文档一致，Wire 生成通过。
 4. “创建 audit-service，只保留 MongoDB 和定时任务” → 自动连带事件总线和异步任务池；无 HTTP，App 无 server 参数，`HelloJob` 与 Hello 事件订阅可运行并正确关闭，`PORT` 不再读取。
 5. “创建 worker，只保留 Kafka 消费者” → 无 HTTP、调度、存储、生产者；`kafka_consumer` 存在，Hello 消费示例与 `LogGreeting` 保留，App 只管理消费者；发布接口与 `POST /goempty/v1/hello/message` 不存在。
 6. “创建 clean-api，只保留定时任务” → 自动连带事件总线和异步任务池，`HelloJob` 可运行，无 HTTP、存储和 Kafka 代码或配置。
-7. “创建 full-service，全部组件” → 完整模板，module 与应用名替换正确，Wire 与 Swagger 重新生成，`go vet ./...`、`go build ./...` 通过。
-8. “创建 pg-service，只保留 PostgreSQL、Redis 和 HTTP 入口” → 无 MySQL、调度、Kafka、MongoDB；`postgres` 配置段与 `newPostgres` 保留，App 无 mysql 字段与参数，`GET /goempty/v1/hello` 与外部 HTTP 示例保留，三个环境配置与根文档一致。
+7. “创建 full-service，全部组件” → 完整模板，MySQL 和 PostgreSQL 分别用 `mysqlHandle` 和 `postgresHandle` 装配；module 与应用名替换正确，Wire 与 Swagger 重新生成，`go vet ./...`、`go build ./...` 通过。
+8. “创建 pg-service，只保留 PostgreSQL、Redis 和 HTTP 入口” → 无 MySQL、调度、Kafka、MongoDB；`newPostgres` 和 `newApp` 直接传递 `*gorm.DB`，无数据库包装类型；保留 `postgres` 配置段、`GET /goempty/v1/hello` 与外部 HTTP 示例，无 App mysql 字段与参数。三个环境配置与根文档一致，Wire 生成通过。
 
 每种组合应无 `_test.go`、不携带生成技能、不修改源。已有目标或目标位于源内时在写入前停止。真实连接只在隔离服务可用时验证。
