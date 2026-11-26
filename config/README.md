@@ -119,7 +119,7 @@ mongodb:
 
 应用通过 `pkg/mongodb.New` 创建共享客户端并 Ping；失败则启动失败，并由 Wire 清理此前创建的 PostgreSQL、MySQL、Redis 连接。App 在 HTTP 和任务关闭后依次释放 MongoDB、Redis、PostgreSQL、MySQL。MongoDB 清理使用独立 Context，超时取 `ShutdownTimeout`（入口为 10 秒），不继承启动 Context 的取消状态；这是 HTTP 和任务排空之后额外的清理时限，不保证整个退出过程在 10 秒内结束。初始化 Ping 受调用方 Context 及驱动超时约束，但 SRV DNS 解析及 TLS 文件读取不承诺受该 Context 限制。
 
-MongoDB 连接配置变更需重启，不自动创建业务集合或索引；`/hello`、`/healthz`、`/readyz` 不读写或探测 MongoDB。
+MongoDB 连接配置变更需重启，不自动创建业务集合或索引；`/goempty/v1/hello`、`/goempty/v1/healthz`、`/goempty/v1/readyz` 不读写或探测 MongoDB。
 
 ## Kafka
 

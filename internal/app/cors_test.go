@@ -21,11 +21,11 @@ func TestHTTPCORS(t *testing.T) {
 		origin string
 		status int
 	}{
-		{"ordinary request", http.MethodGet, "/hello", "", http.StatusOK},
-		{"cross origin", http.MethodGet, "/hello", "https://frontend.example", http.StatusOK},
-		{"another origin", http.MethodGet, "/hello", "https://other.example", http.StatusOK},
+		{"ordinary request", http.MethodGet, "/goempty/v1/hello", "", http.StatusOK},
+		{"cross origin", http.MethodGet, "/goempty/v1/hello", "https://frontend.example", http.StatusOK},
+		{"another origin", http.MethodGet, "/goempty/v1/hello", "https://other.example", http.StatusOK},
 		{"not found", http.MethodGet, "/missing", "https://frontend.example", http.StatusBadRequest},
-		{"method not allowed", http.MethodPost, "/hello", "https://frontend.example", http.StatusBadRequest},
+		{"method not allowed", http.MethodPost, "/goempty/v1/hello", "https://frontend.example", http.StatusBadRequest},
 		{"panic", http.MethodGet, "/cors-panic", "https://frontend.example", http.StatusBadRequest},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -61,7 +61,7 @@ func TestHTTPCORSPreflight(t *testing.T) {
 	handler := newHTTPHandler(&httpDependencies{
 		HelloService: newTestHelloService(helloRepoStub{message: "hello"}),
 	})
-	request := httptest.NewRequest(http.MethodOptions, "/hello", nil)
+	request := httptest.NewRequest(http.MethodOptions, "/goempty/v1/hello", nil)
 	request.Header.Set("Origin", "https://frontend.example")
 	request.Header.Set("Access-Control-Request-Method", http.MethodPost)
 	request.Header.Set("Access-Control-Request-Headers", "Authorization, Content-Type, X-Request-ID")

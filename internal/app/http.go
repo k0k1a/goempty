@@ -36,12 +36,16 @@ func newHTTPHandler(deps *httpDependencies) *gin.Engine {
 	engine.HandleMethodNotAllowed = true
 	engine.NoRoute(controller.RouteNotFound)
 	engine.NoMethod(controller.MethodNotAllowed)
-	engine.GET("/healthz", healthz)
-	engine.GET("/readyz", readyz)
 
 	helloController := controller.NewHelloController(deps.HelloService)
-	engine.GET("/hello", helloController.Hello)
-	engine.POST("/hello/message", helloController.PublishMessage)
+	base := engine.Group("/goempty/v1")
+	{
+		base.GET("/healthz", healthz)
+		base.GET("/readyz", readyz)
+		base.GET("/hello", helloController.Hello)
+		base.POST("/hello/message", helloController.PublishMessage)
+	}
+
 	return engine
 }
 

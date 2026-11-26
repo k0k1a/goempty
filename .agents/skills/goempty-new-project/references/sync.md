@@ -32,7 +32,7 @@
 
 - **新增存储（MySQL/PostgreSQL/MongoDB/Redis）**：补 `pkg` 包、config 字段、YAML 段、provider、App 字段、`newApp` 参数、Wire 和根文档；确认目标现有 Service/Repo 是否已自行接入同类连接。同时接入 MySQL 与 PostgreSQL 时，provider 需用包装类型区分两个 `*gorm.DB`。
 - **新增 Kafka**：生产与消费分开处理；生产者需补 `kafka` 段、provider、发布示例与 `HelloService` 发布方法，消费者还需 `kafka_consumer`、`messaging.go`、消费示例、App 的 consumers 与启停。示例随组件同步。
-- **向无 HTTP 项目新增 HTTP 入口**：补 server、middleware、response、error、路由、`GET /hello`、Hello Service/Repo 和外部 HTTP 示例，恢复 `main.go` 的 `PORT` 解析和 `httpserver.Config`，调整 App 的 server 参数、Run 等待和 Shutdown，确认退出路径仍释放资源。
+- **向无 HTTP 项目新增 HTTP 入口**：补 server、middleware、response、error、路由、`GET /goempty/v1/hello`、Hello Service/Repo 和外部 HTTP 示例，恢复 `main.go` 的 `PORT` 解析和 `httpserver.Config`，调整 App 的 server 参数、Run 等待和 Shutdown，确认退出路径仍释放资源。
 - **新增调度或事件**：事件总线依赖异步任务池；新增定时任务必须同时补事件总线、异步任务池和 `HelloJob` 示例，不保留零任务调度器或空总线；至少保留一个运行入口的约束仍然适用。
 - **新增游标分页**：补 `pkg/cursor`、`entity` 分页类型和文档规则；签名 key 由目标业务注入，不新增模板配置字段。
 
@@ -41,7 +41,7 @@
 在临时目录复制一个只保留 HTTP 入口的模板派生项目，验证：
 
 1. 同步 MySQL 和 Redis → 两个连接创建、Ping、关闭正确，三个环境 YAML 与 `config.Config` 一致，现有 handler 不被修改。
-2. 同步 Kafka 消费者 → `kafka_consumer`、`internal/consumer`、Hello 消费示例、App 消费者启停存在；不新增 `POST /hello/message`，不新增测试。
-3. 向该项目同步 HTTP 入口 → 监听、healthz/readyz、`GET /hello`、外部 HTTP 示例、取消退出和清理可用，Wire 重新生成，根文档只增加实际保留内容。
+2. 同步 Kafka 消费者 → `kafka_consumer`、`internal/consumer`、Hello 消费示例、App 消费者启停存在；不新增 `POST /goempty/v1/hello/message`，不新增测试。
+3. 向该项目同步 HTTP 入口 → 监听、`GET /goempty/v1/healthz`、`GET /goempty/v1/readyz`、`GET /goempty/v1/hello`、外部 HTTP 示例、取消退出和清理可用，Wire 重新生成，根文档只增加实际保留内容。
 4. 向该项目同步 PostgreSQL → `postgres` 配置段、`newPostgres`、App postgres 字段与关闭路径存在，不新增 MySQL，Wire 重新生成。
 5. 向该项目同步定时任务 → 同时新增事件总线、异步任务池、`HelloJob` 和对应配置段，调度可启动和关闭，不出现零任务调度器。

@@ -172,7 +172,7 @@ func TestAppHello(t *testing.T) {
 	})
 	client := &http.Client{Timeout: time.Second}
 	for {
-		resp, err := client.Get("http://" + addr + "/hello")
+		resp, err := client.Get("http://" + addr + "/goempty/v1/hello")
 		if err == nil {
 			defer resp.Body.Close()
 			var body struct {
@@ -185,7 +185,7 @@ func TestAppHello(t *testing.T) {
 				t.Fatal(err)
 			}
 			if resp.StatusCode != http.StatusOK || body.Code != 0 || body.Data.Message != "hello" {
-				t.Fatalf("GET /hello = %d, %+v", resp.StatusCode, body)
+				t.Fatalf("GET /goempty/v1/hello = %d, %+v", resp.StatusCode, body)
 			}
 			return
 		}

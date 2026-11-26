@@ -21,7 +21,7 @@
 
 | 组件 | 依赖 | 专属实现（含示例） | 连带调整 |
 | --- | --- | --- | --- |
-| HTTP 入口 | — | `pkg/httpserver/`、`internal/controller/middleware/`、`internal/controller/response/`、`internal/controller/error.go`、`internal/app/http.go` 的路由与 healthz/readyz、`internal/entity/error.go`；示例：`internal/controller/hello.go` 的 `Hello`、`internal/entity/hello.go`、`internal/service/hello.go` 的 `Hello`、`internal/repo/db/hello.go`、`GET /hello`、`internal/repo/webapi/hello/` | `config.Config.HTTP`、`main.go` 的 `PORT` 解析与 `httpserver.Config`、`newHTTPServer`/`httpDependencies`、App 的 server 参数与校验、start 监听、Run 的 done、Shutdown 的 Stop；gin、cors、requestid 依赖；Hello Service/Repo 装配；错误处理、HTTP、生命周期文档；README 接口说明与导航、conventions 外部 HTTP 示例链接；Swagger 条目随 Swagger 组件处理。无 HTTP 时 main 不读 `PORT`，App 只等待所选运行组件 |
+| HTTP 入口 | — | `pkg/httpserver/`、`internal/controller/middleware/`、`internal/controller/response/`、`internal/controller/error.go`、`internal/app/http.go` 的路由与 `GET /goempty/v1/healthz`、`GET /goempty/v1/readyz`、`internal/entity/error.go`；示例：`internal/controller/hello.go` 的 `Hello`、`internal/entity/hello.go`、`internal/service/hello.go` 的 `Hello`、`internal/repo/db/hello.go`、`GET /goempty/v1/hello`、`internal/repo/webapi/hello/` | `config.Config.HTTP`、`main.go` 的 `PORT` 解析与 `httpserver.Config`、`newHTTPServer`/`httpDependencies`、App 的 server 参数与校验、start 监听、Run 的 done、Shutdown 的 Stop；gin、cors、requestid 依赖；Hello Service/Repo 装配；错误处理、HTTP、生命周期文档；README 接口说明与导航、conventions 外部 HTTP 示例链接；Swagger 条目随 Swagger 组件处理。无 HTTP 时 main 不读 `PORT`，App 只等待所选运行组件 |
 | 定时任务 | 事件总线、异步任务池（示例依赖） | `pkg/scheduler/`；示例：`internal/job/hello.go`、`internal/app/jobs.go` 的注册 | `internal/app/jobs.go`、Wire `jobDependencies`/`newScheduler`、App 的 scheduler 参数、校验与启停、cron 依赖与文档；`HelloService.PublishGreeting` 与 `helloPublisher`。不保留零任务调度器 |
 | 异步任务池 | — | `pkg/async/` | `config.Config.Async` 与 YAML `async` 段、`async.New` provider、App 的 taskPool 参数、校验与启停、Ants 依赖与文档 |
 | 事件总线 | 异步任务池 | `pkg/event/`；示例：`internal/event/hello.go`、`internal/entity/hello_event.go`、`internal/service/hello_event.go` 的 `LogGreeting`、`internal/app/events.go` 的注册 | `event.New` provider、App 的 eventBus 参数与启停、Wire `HelloEventPublisher` 绑定（随定时任务示例保留时）、文档。总线不保留空订阅 |
@@ -29,7 +29,7 @@
 | PostgreSQL | — | `pkg/postgres/` | `config.Config.Postgres`、全部 YAML `postgres` 段、`newPostgres`、`postgresHandle`、App 的 postgres 字段、newApp 参数、Wire、GORM/PostgreSQL 与 pgx 依赖、事务文档、README 测试变量。与 MySQL 相互独立，可同时保留 |
 | MongoDB | — | `pkg/mongodb/` | `config.Config.MongoDB` 与 YAML 段、`newMongoDB`、App 的 mongoClient、newApp 参数、Wire、官方 Driver 依赖与文档 |
 | Redis | — | `pkg/redis/` | `config.Config.Redis` 与 YAML 段、`newRedis`、App 的 redisClient、newApp 参数、Wire、go-redis 依赖与文档 |
-| Kafka 生产者 | — | `pkg/kafka/`；示例：`internal/repo/publisher/hello.go`、`internal/service/hello_message.go`、`internal/entity/hello_message.go`、`HelloService.helloMessagePublisher`；同时选择 HTTP 时含 `PublishMessage` 与 `POST /hello/message` | `config.Config.Kafka` 与 YAML `kafka` 段、`newKafkaProducer`、Wire 字段与清理、`HelloMessagePublisher` 绑定、文档 |
+| Kafka 生产者 | — | `pkg/kafka/`；示例：`internal/repo/publisher/hello.go`、`internal/service/hello_message.go`、`internal/entity/hello_message.go`、`HelloService.helloMessagePublisher`；同时选择 HTTP 时含 `PublishMessage` 与 `POST /goempty/v1/hello/message` | `config.Config.Kafka` 与 YAML `kafka` 段、`newKafkaProducer`、Wire 字段与清理、`HelloMessagePublisher` 绑定、文档 |
 | Kafka 消费者 | — | `pkg/kafka/`、`internal/app/messaging.go`；示例：`internal/consumer/hello.go`、`messaging.go` 的注册、`internal/entity/hello_message.go`、`HelloService.LogGreeting` | `config.Config.KafkaConsumer` 与 YAML `kafka_consumer` 段、Wire `messagingDependencies`/`newMessagingConsumers`、newApp 参数、App 的 consumers 字段与校验、start 的 Start 与 Done 等待、Shutdown 的 Stop 与等待、文档 |
 | 页码分页 | — | `internal/entity/page.go` 中 `Page`、`PageList` | conventions 公共分页的页码规则、architecture 公共分页引用 |
 | 游标分页 | — | `pkg/cursor/`、`internal/entity/page.go` 中 `CursorPage`、`CursorPageList` 及 `FetchLimit` | conventions 公共分页的游标条目、architecture 目录树与 `pkg/cursor/README.md` |
@@ -42,7 +42,7 @@
 - `internal/repo/db/hello.go` 提供固定问候语，无存储依赖；保留需要 `Hello()` 的示例时，即使移除全部存储组件也保留该 Repo 及其接口绑定。
 - 示例之间共享的文件按任一所选组件保留并裁剪：`internal/entity/hello_message.go` 同时被 Kafka 生产者和消费者示例使用；`internal/entity/hello_event.go` 同时被事件总线、定时任务和 Kafka 消费者示例使用。
 - 外部 HTTP 示例 `internal/repo/webapi/hello/` 不参与装配，随 HTTP 入口保留，包括其 README、architecture 目录树、README 导航和 conventions 示例链接。
-- 只保留 HTTP 入口时，路由除 healthz/readyz 外包含 `GET /hello`；不选 Kafka 生产者时不存在 `POST /hello/message`。
+- 只保留 HTTP 入口时，路由除 `GET /goempty/v1/healthz`、`GET /goempty/v1/readyz` 外包含 `GET /goempty/v1/hello`；不选 Kafka 生产者时不存在 `POST /goempty/v1/hello/message`。
 - 保留 Kafka 消费者时包含 `internal/consumer/hello.go` 消费示例，不出现无业务 handler 的消费者。
 - 保留事件总线时包含 Hello 事件订阅示例；未选定时任务时事件由后续业务代码发布，订阅本身随组件保留。
 - Swagger 只包含实际保留接口的注解；不选 Swagger 时删除生成脚本、产物、注释与 Makefile 目标。
@@ -65,12 +65,12 @@
 在独立临时目录复制源到不同路径，从副本加载技能，分别验证：
 
 1. 未给出组件集合 → 技能列出组件目录与依赖并询问，不生成任何文件。
-2. “创建 plain-api，只保留 HTTP 入口” → 有 healthz/readyz、`GET /hello`、Hello Service/Repo 和外部 HTTP 示例；无 `POST /hello/message`、存储、调度、Kafka 和 Swagger 生成，Wire/build/vet 通过。
-3. “创建 order-service，只保留 MySQL、Redis 和 HTTP 入口” → 保留两个连接、`GET /hello` 和外部 HTTP 示例，无调度、Kafka、MongoDB。三个环境配置与根文档一致。
+2. “创建 plain-api，只保留 HTTP 入口” → 有 `GET /goempty/v1/healthz`、`GET /goempty/v1/readyz`、`GET /goempty/v1/hello`、Hello Service/Repo 和外部 HTTP 示例；无 `POST /goempty/v1/hello/message`、存储、调度、Kafka 和 Swagger 生成，Wire/build/vet 通过。
+3. “创建 order-service，只保留 MySQL、Redis 和 HTTP 入口” → 保留两个连接、`GET /goempty/v1/hello` 和外部 HTTP 示例，无调度、Kafka、MongoDB。三个环境配置与根文档一致。
 4. “创建 audit-service，只保留 MongoDB 和定时任务” → 自动连带事件总线和异步任务池；无 HTTP，App 无 server 参数，`HelloJob` 与 Hello 事件订阅可运行并正确关闭，`PORT` 不再读取。
-5. “创建 worker，只保留 Kafka 消费者” → 无 HTTP、调度、存储、生产者；`kafka_consumer` 存在，Hello 消费示例与 `LogGreeting` 保留，App 只管理消费者；发布接口与 `POST /hello/message` 不存在。
+5. “创建 worker，只保留 Kafka 消费者” → 无 HTTP、调度、存储、生产者；`kafka_consumer` 存在，Hello 消费示例与 `LogGreeting` 保留，App 只管理消费者；发布接口与 `POST /goempty/v1/hello/message` 不存在。
 6. “创建 clean-api，只保留定时任务” → 自动连带事件总线和异步任务池，`HelloJob` 可运行，无 HTTP、存储和 Kafka 代码或配置。
 7. “创建 full-service，全部组件” → 完整模板，module 与应用名替换正确，Wire 与 Swagger 重新生成，`go vet ./...`、`go build ./...` 通过。
-8. “创建 pg-service，只保留 PostgreSQL、Redis 和 HTTP 入口” → 无 MySQL、调度、Kafka、MongoDB；`postgres` 配置段与 `newPostgres` 保留，App 无 mysql 字段与参数，`GET /hello` 与外部 HTTP 示例保留，三个环境配置与根文档一致。
+8. “创建 pg-service，只保留 PostgreSQL、Redis 和 HTTP 入口” → 无 MySQL、调度、Kafka、MongoDB；`postgres` 配置段与 `newPostgres` 保留，App 无 mysql 字段与参数，`GET /goempty/v1/hello` 与外部 HTTP 示例保留，三个环境配置与根文档一致。
 
 每种组合应无 `_test.go`、不携带生成技能、不修改源。已有目标或目标位于源内时在写入前停止。真实连接只在隔离服务可用时验证。

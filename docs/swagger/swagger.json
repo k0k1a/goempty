@@ -6,7 +6,7 @@
         "contact": {},
         "version": "1.0"
     },
-    "basePath": "/",
+    "basePath": "/goempty/v1",
     "paths": {
         "/healthz": {
             "get": {

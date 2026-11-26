@@ -61,7 +61,7 @@ handler；同名事件在不同 topic 语义不同时天然由 topic 维度区�
 用 `NewMessageRawData(eventType, data)` 创建事件，它会生成 `_event_id`、写入当前 UTC
 `_event_time` 和服务来源。生成新项目时把包内的 `eventSource` 常量改为实际服务名。
 
-应用内发布实现放 `internal/repo/publisher`，Service 通过接口注入。`POST /hello/message`
+应用内发布实现放 `internal/repo/publisher`，Service 通过接口注入。`POST /goempty/v1/hello/message`
 是 hello 示例入口：请求体为消息 data，发布到 `hello` topic，由 hello 消费者处理。
 
 同步调用 `PublishSync(ctx, topic, event, opts...)` 等待投递结果。异步调用

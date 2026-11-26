@@ -30,7 +30,7 @@ func TestHTTPHelloRoute(t *testing.T) {
 		HelloService: newTestHelloService(helloRepoStub{message: "from repository"}),
 	})
 	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/hello", nil))
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/goempty/v1/hello", nil))
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
 	}
@@ -83,7 +83,7 @@ func TestHTTPHelloMessageRoute(t *testing.T) {
 	})
 	post := func(body string) *httptest.ResponseRecorder {
 		recorder := httptest.NewRecorder()
-		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/hello/message", strings.NewReader(body)))
+		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/goempty/v1/hello/message", strings.NewReader(body)))
 		return recorder
 	}
 
@@ -158,7 +158,7 @@ func TestHTTPFrameworkErrors(t *testing.T) {
 		code   int
 	}{
 		{http.MethodGet, "/missing", http.StatusBadRequest, 100004},
-		{http.MethodPost, "/hello", http.StatusBadRequest, 100001},
+		{http.MethodPost, "/goempty/v1/hello", http.StatusBadRequest, 100001},
 		{http.MethodGet, "/panic", http.StatusBadRequest, -1},
 	} {
 		t.Run(tc.path, func(t *testing.T) {
@@ -202,7 +202,7 @@ func TestHTTPRecovery(t *testing.T) {
 		status int
 	}{
 		{"/panic", http.StatusBadRequest},
-		{"/hello", http.StatusOK},
+		{"/goempty/v1/hello", http.StatusOK},
 	} {
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, tc.path, nil))
@@ -222,9 +222,9 @@ func TestHTTPRequestID(t *testing.T) {
 		path   string
 		status int
 	}{
-		{http.MethodGet, "/hello", http.StatusOK},
+		{http.MethodGet, "/goempty/v1/hello", http.StatusOK},
 		{http.MethodGet, "/missing", http.StatusBadRequest},
-		{http.MethodPost, "/hello", http.StatusBadRequest},
+		{http.MethodPost, "/goempty/v1/hello", http.StatusBadRequest},
 		{http.MethodGet, "/panic-id", http.StatusBadRequest},
 	} {
 		t.Run(tc.method+tc.path, func(t *testing.T) {

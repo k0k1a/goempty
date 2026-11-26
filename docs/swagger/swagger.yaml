@@ -1,4 +1,4 @@
-basePath: /
+basePath: /goempty/v1
 definitions:
   entity.HelloGreetingMessage:
     properties:

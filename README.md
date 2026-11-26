@@ -19,7 +19,7 @@ make build
 ./dist/app
 ```
 
-`GET /hello` 返回包含固定问候语的 JSON。`GET /healthz` 和 `GET /readyz` 返回 200 空响应，当前只反映 HTTP 服务可响应。
+HTTP 路由统一使用 `/goempty/v1` 前缀。`GET /goempty/v1/hello` 返回包含固定问候语的 JSON。`GET /goempty/v1/healthz` 和 `GET /goempty/v1/readyz` 返回 200 空响应，当前只反映 HTTP 服务可响应。部署探针应使用带前缀的地址。
 
 保留定时任务时，每个实例会在每分钟整点尝试发布问候事件。订阅者完成处理后可在服务日志中看到 `Hello task greeting`。HTTP 和定时事件示例共用同一份固定问候语。另有一个独立的外部 HTTP 客户端示例，可按需使用。
 

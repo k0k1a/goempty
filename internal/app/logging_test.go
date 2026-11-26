@@ -30,10 +30,10 @@ func TestHTTPAccessAndPanicLogs(t *testing.T) {
 		}{
 			{"success", http.MethodGet, "/users/private-user-id"},
 			{"missing", http.MethodGet, "/private-missing-path"},
-			{"method", http.MethodPost, "/hello"},
+			{"method", http.MethodPost, "/goempty/v1/hello"},
 			{"panic", http.MethodGet, "/panic"},
 			{"written", http.MethodGet, "/written-panic"},
-			{"preflight", http.MethodOptions, "/hello"},
+			{"preflight", http.MethodOptions, "/goempty/v1/hello"},
 		} {
 			request := httptest.NewRequest(tc.method, tc.path+"?token=private-query-token", strings.NewReader("private-body-value"))
 			request.Header.Set("X-Request-ID", tc.id)

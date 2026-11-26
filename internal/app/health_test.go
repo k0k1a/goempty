@@ -10,7 +10,7 @@ func TestHTTPHealthEndpoints(t *testing.T) {
 	handler := newHTTPHandler(&httpDependencies{
 		HelloService: newTestHelloService(helloRepoStub{message: "hello"}),
 	})
-	for _, path := range []string{"/healthz", "/readyz"} {
+	for _, path := range []string{"/goempty/v1/healthz", "/goempty/v1/readyz"} {
 		t.Run(path, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodGet, path, nil)
 			request.Header.Set("X-Request-ID", "health-request-1")

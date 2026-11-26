@@ -20,10 +20,10 @@ go run github.com/swaggo/swag/cmd/swag@v1.16.6 init --generalInfo main.go --dir 
 
 ## 维护约定
 
-- `cmd/app/main.go` 维护文档标题、版本、基础路径与公共说明。
-- Controller 方法通过 `@Summary`、`@Tags`、`@Param`、`@Success`、`@Failure`、`@Router` 等注释描述接口。路径和方法必须与 `internal/app/http.go` 中的路由一致。
+- `cmd/app/main.go` 维护文档标题、版本、基础路径与公共说明。`@BasePath` 与 `internal/app/http.go` 中的路由组前缀一致，当前为 `/goempty/v1`。
+- Controller 方法通过 `@Summary`、`@Tags`、`@Param`、`@Success`、`@Failure`、`@Router` 等注释描述接口。`@Router` 只写相对于 `@BasePath` 的路径（例如 `/hello`），拼接后的路径和方法必须与实际注册的路由一致。
 - HTTP 数据类型放在 `internal/entity`，公共响应复用 `response.Response[T]`。优先使用明确的数据结构，避免 `gin.H` 导致字段描述缺失。
-- `/healthz` 和 `/readyz` 的注释随对应 handler 维护；两者均为 200 空响应，当前 readiness 不检查数据库或 Redis。
+- `/goempty/v1/healthz` 和 `/goempty/v1/readyz` 的注释随对应 handler 维护；两者均为 200 空响应，当前 readiness 不检查数据库或 Redis。
 - `request_id` 为响应体预留可选字段，当前不输出；实际请求 ID 使用 `X-Request-ID` 响应头。
 - 修改接口、数据结构或文档注释后重新生成，并将生成文件与代码一起提交。不要直接编辑生成文件。
 - 生成器依据注释描述接口，不会自动推导所有路由和业务分支。新建接口目录时同步更新 `scripts/generate-api-docs/main.go` 及上述命令的扫描目录。

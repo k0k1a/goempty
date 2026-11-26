@@ -20,7 +20,7 @@ import (
 // @title goempty API
 // @version 1.0
 // @description goempty HTTP API. Ordinary JSON responses use code/message/data; code 0 means success. Request IDs are returned in the X-Request-ID header. Health endpoints return an empty body.
-// @BasePath /
+// @BasePath /goempty/v1
 func main() {
 	ctx := context.Background()
 	exitCode := 0
