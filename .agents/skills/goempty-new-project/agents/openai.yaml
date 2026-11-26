@@ -1,4 +1,4 @@
 interface:
   display_name: "从 Go 模板创建或同步项目"
-  short_description: "从当前 Go 模板按所选组件创建空服务，或向已有项目同步组件、装配、示例与根文档"
+  short_description: "从当前 Go 模板按所选组件创建服务，或向已有项目同步组件、装配与根文档"
   default_prompt: "使用 $goempty-new-project 创建或同步服务：先和我确认需要哪些组件，再按我的应用名、目标路径和组件选择处理当前模板。"
