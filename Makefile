@@ -3,9 +3,11 @@ DIST_DIR ?= dist
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 CGO_ENABLED ?= 0
+GOPROXY ?= https://goproxy.cn,direct
 LDFLAGS ?= -s -w
 
 SHELL := /bin/sh
+export GOPROXY
 .DEFAULT_GOAL := help
 
 .PHONY: help run build fmt test vet check test-integration wire docs
