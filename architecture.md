@@ -132,7 +132,7 @@ MongoDB 的原子操作与事务同样由 Repo 封装。操作选择、失败语
 
 ## 目录结构
 
-目录树列出模板的主要目录和关键文件。业务文件以现有 Hello demo 为例，新增同类业务文件时无需更新目录树。标注“按需”的路径随实际需求创建。
+目录树列出项目的主要目录和关键文件。业务文件以现有 Hello demo 为例，新增同类业务文件时无需更新目录树。标注“按需”的路径随实际需求创建。
 
 ```text
 ├── cmd/
@@ -205,9 +205,6 @@ MongoDB 的原子操作与事务同样由 Repo 封装。操作选择、失败语
 │   └── swagger/                    # Swagger 接口文档
 ├── scripts/
 │   └── generate-api-docs/          # Swagger 文档生成入口
-├── .agents/
-│   └── skills/
-│       └── goempty-new-project/    # 项目创建、组件裁剪与向已有项目同步
 ├── .gitignore
 ├── .env.example                    # 按需，环境变量示例
 ├── AGENTS.md                       # 项目规则与文档阅读入口

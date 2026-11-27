@@ -1,0 +1,4 @@
+interface:
+  display_name: "向已有项目同步 Go 模板"
+  short_description: "比较并适配模板组件、修复和项目规范，保留 demo 与目标业务"
+  default_prompt: "使用 $goempty-sync-project 同步模板到已有项目：先确认目标与新增或更新范围，只读比较代码、配置、装配、demo 和根文档，列出冲突与适配方案，获确认后增量修改，不复制模板测试及组件文档。"

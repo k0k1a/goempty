@@ -1,6 +1,6 @@
 # goempty
 
-用于创建新 Go / Gin 服务的模板。已提供配置、日志、MySQL、PostgreSQL、Redis、MongoDB、统一响应、Wire 依赖组装、HTTP 优雅关闭、进程内定时调度、异步任务池和事件分发。基础组件与生命周期测试保留，便于新项目修改后检查回归。
+用于创建新 Go / Gin 服务的模板。已提供配置、日志、MySQL、PostgreSQL、Redis、MongoDB、统一响应、Wire 依赖组装、HTTP 优雅关闭、进程内定时调度、异步任务池和事件分发。
 
 ## 本地启动
 
@@ -96,4 +96,4 @@ MySQL / PostgreSQL / Redis / MongoDB 真实服务测试在缺少对应变量时�
 make wire
 ```
 
-接口和注释变化后运行 `go run ./scripts/generate-api-docs`。创建新项目时替换模块名和应用名称，调整配置文件与文档；示例能力按需保留。组件 README 记录局部行为，根文档负责导航，避免复制多份实现说明。
+接口和注释变化后运行 `go run ./scripts/generate-api-docs`。
