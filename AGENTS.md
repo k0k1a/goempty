@@ -11,6 +11,7 @@
 | 新增业务、调整分层或依赖 | [分层与依赖](architecture.md#分层与依赖) |
 | 类型、依赖及 receiver 命名 | [各层命名规范](architecture.md#各层命名规范) |
 | 输入、结果、数据库对象及跨层复用 | [对象与复用](architecture.md#对象与复用) |
+| 参数校验、调用契约与防御检查 | [校验与调用契约](conventions.md#校验与调用契约) |
 | HTTP 或 MQ 入口 | [HTTP 与 MQ](architecture.md#http-与-mq) |
 | 进程内事件或直接提交异步任务 | [入口与装配](architecture.md#进程内异步任务与事件)、[提交与执行约定](conventions.md#进程内异步任务与事件) |
 | 原子操作、事务或并发更新 | [事务职责](architecture.md#事务职责) |
@@ -46,6 +47,7 @@
 ## 实施约束
 
 - 业务入口调用 Service，Service 依赖 Repo 接口。完整原子操作及事务由 Repo 封装。 [分层与依赖](architecture.md#分层与依赖) · [事务职责](architecture.md#事务职责)
+- 校验按职责与调用契约分配。保留业务约束和真实可达的异常处理，不重复检查在当前使用点仍有明确保证的条件，不为假想的调用误用添加防御分支。 [校验与调用契约](conventions.md#校验与调用契约)
 - 业务实体的判断和状态转换，若仅依赖自身字段和显式参数，优先封装为实体方法。适用边界见 [对象与复用](architecture.md#对象与复用)。
 - `internal/app` 负责装配本项目启用的入口和运行组件。应用启动前完成路由、任务和订阅的注册，由 App 统一管理启停。 [生命周期](conventions.md#生命周期)
 - 按目录职责放置对象和错误。跨层传递时不增加仅逐字段复制的对象。 [对象与复用](architecture.md#对象与复用) · [错误与响应适配](architecture.md#错误与响应适配)
