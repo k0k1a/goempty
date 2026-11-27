@@ -1,4 +1,4 @@
-basePath: /goempty/v1
+basePath: /
 definitions:
   entity.HelloGreetingMessage:
     properties:
@@ -51,7 +51,7 @@ info:
   title: goempty API
   version: "1.0"
 paths:
-  /healthz:
+  /goempty/v1/healthz:
     get:
       responses:
         "200":
@@ -63,7 +63,7 @@ paths:
       summary: Check liveness
       tags:
       - health
-  /hello:
+  /goempty/v1/hello:
     get:
       produces:
       - application/json
@@ -87,7 +87,7 @@ paths:
       summary: Get a greeting
       tags:
       - hello
-  /hello/message:
+  /goempty/v1/hello/message:
     post:
       consumes:
       - application/json
@@ -120,7 +120,7 @@ paths:
       summary: Publish a hello message
       tags:
       - hello
-  /readyz:
+  /goempty/v1/readyz:
     get:
       description: Returns 200 with an empty body; does not check MySQL or Redis connectivity.
       responses:

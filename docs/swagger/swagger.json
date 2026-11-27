@@ -6,9 +6,9 @@
         "contact": {},
         "version": "1.0"
     },
-    "basePath": "/goempty/v1",
+    "basePath": "/",
     "paths": {
-        "/healthz": {
+        "/goempty/v1/healthz": {
             "get": {
                 "tags": [
                     "health"
@@ -27,7 +27,7 @@
                 }
             }
         },
-        "/hello": {
+        "/goempty/v1/hello": {
             "get": {
                 "produces": [
                     "application/json"
@@ -64,7 +64,7 @@
                 }
             }
         },
-        "/hello/message": {
+        "/goempty/v1/hello/message": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -115,7 +115,7 @@
                 }
             }
         },
-        "/readyz": {
+        "/goempty/v1/readyz": {
             "get": {
                 "description": "Returns 200 with an empty body; does not check MySQL or Redis connectivity.",
                 "tags": [

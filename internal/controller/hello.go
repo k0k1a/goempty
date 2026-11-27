@@ -25,7 +25,7 @@ func NewHelloController(helloService *service.HelloService) *HelloController {
 // @Success 200 {object} response.Response[entity.HelloResponse] "Greeting returned successfully; code is 0"
 // @Failure 400 {object} response.Response[any] "Internal error; code is -1, data is null"
 // @Header all {string} X-Request-ID "Request ID"
-// @Router /hello [get]
+// @Router /goempty/v1/hello [get]
 func (h *HelloController) Hello(c *gin.Context) {
 	response.Success(c, entity.HelloResponse{Message: h.helloService.Hello()})
 }
@@ -39,7 +39,7 @@ func (h *HelloController) Hello(c *gin.Context) {
 // @Success 200 {object} response.Response[entity.HelloResponse] "Message published successfully; code is 0"
 // @Failure 400 {object} response.Response[any] "Invalid request or publish failure"
 // @Header all {string} X-Request-ID "Request ID"
-// @Router /hello/message [post]
+// @Router /goempty/v1/hello/message [post]
 func (h *HelloController) PublishMessage(c *gin.Context) {
 	var message entity.HelloGreetingMessage
 	if err := c.ShouldBindJSON(&message); err != nil {

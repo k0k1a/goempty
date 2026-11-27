@@ -54,7 +54,7 @@ func newHTTPHandler(deps *httpDependencies) *gin.Engine {
 // @Tags health
 // @Success 200 "OK; empty response body"
 // @Header 200 {string} X-Request-ID "Request ID"
-// @Router /healthz [get]
+// @Router /goempty/v1/healthz [get]
 func healthz(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
@@ -65,7 +65,7 @@ func healthz(c *gin.Context) {
 // @Tags health
 // @Success 200 "OK; empty response body"
 // @Header 200 {string} X-Request-ID "Request ID"
-// @Router /readyz [get]
+// @Router /goempty/v1/readyz [get]
 func readyz(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
